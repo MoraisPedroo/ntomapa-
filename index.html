@@ -106,6 +106,9 @@
       font-weight: bold; color: #555;
     }
     #collapse-panel:hover { background: #f9fafb; color: #000; }
+
+    /* --- ESTILOS PARA NAVEGADOR INTERNO --- */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 60; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(3px); }
   </style>
 </head>
 <body class="bg-[#F3F0EC] text-[#3D405B]">
@@ -163,7 +166,9 @@
         <div id="status-message" class="message mt-2 text-sm"></div>
       </div>
       <div class="mt-6 space-y-2">
-        <a id="modal-link" href="#" target="_blank" rel="noopener noreferrer" class="block text-center px-4 py-3 bg-[#E07A5F] text-white rounded-lg hover:bg-opacity-90 transition-colors">Acessar IP</a>
+       <button id="modal-web-btn" class="block w-full text-center px-4 py-3 bg-[#E07A5F] text-white rounded-lg hover:bg-opacity-90 transition-colors font-semibold">
+  🖥️ Acessar Interface Web
+</button>
         <div class="grid grid-cols-3 gap-2">
           <button id="check-status-btn" class="px-2 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm">Status</button>
           <button id="calibrate-btn" class="px-2 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm">Calibrar</button>
@@ -172,6 +177,24 @@
       </div>
     </div>
   </div>
+
+<!-- MODAL DE NAVEGAÇÃO INTERNA (cópia exata do segundo código) -->
+<div id="browser-modal" class="modal-backdrop hidden z-[90]">
+  <div class="bg-white w-[98%] h-[95vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-gray-400">
+    <div class="bg-gray-100 border-b p-2 flex items-center gap-3">
+      <button class="close-browser text-gray-400 hover:text-red-600 font-bold text-xl px-2">✕</button>
+      <button id="browser-refresh" class="text-gray-500 hover:text-blue-600">⟳</button>
+      <div class="flex-1 bg-white border border-gray-300 rounded px-3 py-1.5 text-xs font-mono text-gray-600 truncate flex items-center gap-2">
+        <span class="text-green-600">🔒</span>
+        <span id="browser-url">Aguardando...</span>
+      </div>
+      <div id="browser-spinner" class="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent hidden"></div>
+    </div>
+    <div class="flex-1 bg-white relative">
+      <iframe id="internal-frame" class="w-full h-full border-0" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+    </div>
+  </div>
+</div>
 
   <div id="toast-notification" class="toast" role="status" aria-live="polite"></div>
 
@@ -361,6 +384,8 @@
     let currentFloor = 1;
     let currentPrinterIp = '';
 
+
+    
     const initialPrinters2floor = [
     {name:'CAF114134', department:'CAF', selb:'32F1', ip:'172.19.114.134', observations:'', floor:2, pos:{top:'53.23084314196493%', left:'16.88179347826087%'}},
     {name:'LOG114226', department:'LOGISTICA', selb:'CABTEC LOG114226', ip:'172.19.114.226', observations:'', floor:2, pos:{top:'60.53372367976579%', left:'19.955948305601996%'}},
@@ -579,8 +604,6 @@ P1
     document.getElementById('modal-observations').textContent = printer.observations || 'Nenhuma observação.';
     currentPrinterIp = printer.ip;
 
-    document.getElementById('modal-link').href = `http://${printer.ip}`;
-    document.getElementById('modal-link').setAttribute('rel','noopener noreferrer');
     // Reset status display
     document.getElementById('status-display').classList.add('hidden');
     document.getElementById('status-sq').style.background = '#ccc';
@@ -839,7 +862,7 @@ P1
     ^LL0354
     ^LS0
     ^FO96,0^GFA,79872,79872,00208,:Z64:
-    eJzs2kEOgyAURVESFsbWXZI7sKYFpE06f9FzByToF3LmliJJkiRJ/2rHfeLJjic7nux4suPJjic7nux4suPJjic7nux4suPJjic7nux4suPJjic7nuxu69mWHxLqUdpez4fn8rXtw315b8fINdzn9rqOtM9dY245YLz4PXT9Yt57HTqHZzw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PI/wvAAAAP//7NoxbtwwEEZhCixY6gg6Cq+VymLgg0W5iXIDlQQiaDI/NwsECOykCTRw3issyVTBD9LOujAePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw/OeeDxKe2OGJHZ7Y4YkdntjhiR2e2OGJHZ7Y4YkdntjhiR2e2OGJHZ7Y4YkdntjhiR2e2H1EDxERERH9dVP3H/lMaR2XNc3W07xPZldadv9NOXytpfTii9u4Smlpd233jw3PYmmyXZfr8NQ+PObMVM/H2osfjrRcuiuwJ8tTbSvjf3KTDY9d8kymza+WstYuP5y60v3txh2/X5FntV2MJM9iejjy5PHHvFkrvjZdqeiRWUuP9y9osxgmj16uaXjyw1O0eT/ZtJYvf3LybLq/3brn91q6FHYsw5Ofns/ydH8Ofr4tDik+HgZz0/3t5l2/XZXnmo/lmz4sZXgc4p5zPnyg5XPZtTZr3Nl0aeblwB59bKaz9Pr16dFQdsjU593Psx/qZqm6Z1tfT3nmuJ4sTz5zr02e2TS7HpBjHMrhurb6yPOvn/rqOo3DdvO236wMT8+9DM/y9PjK/tOT5dHsrq22T/KsgT3f9b51fQv94tnSb57L37c2rO750v7lnn4AAAD//+2cQYrcMBBFZRTQ0hcI6CjOsbIYRh5mkWNFuxwjDnMBhWwE0dipXyVpegLJJoGRoD4NDXYv9Cyp6lcJ97983A9OO41nC51njY0n18WHwrcrz7j51D01ngXx+p6G/hkhgaYqYuN0nlx5cO9+YJ5H5iGbycbnLtDmiP7LAY/G+afxHOx9xOp8HJfnnW08bBQKeA7/tWDg7HccshHxmMqDUPBhXB6ZFrMmLg6WDJ4EP0CVA/trKzw781ywcWZoPyo8BIONsSTwZI+JobkIiOWn7zwEw7tsfB7yAzBylnmKhxFFvXPy232dx5Zq3YbnCcRTkHPICHwCT+R652Kv2nkceKKZgAdP/UTOCeZcCq2waIrh+GZueBAykH+G51lQuAXheQ8P7SNtFBhRuvzceXySdsLwPLYGY7+jKwKeg3kQI7afnWc7JuFx3PjYKUYLD1mdJRt80Zw9dR5ahbXfsL/hiP8uHt9aH/rGbyozj208xnaey0zCw422P/KkysO5dAoepJ/Gc2dOWGubXnhQzyF+U7hOU/BQXA6V53sRHtd4sms8LrM7NRPwACkID+Wf9XjhsTc8id2pGZ8HsRhjxnq7luISih+DsE2LTPoh9JtKZ4bngafZvnEnl/2Oyxt4VsIynF3Ry+L+2+PpJ+HhGgE8gfuJ0R1kbyjhLLWfKDwPF7ftB+exr3nwTx07LS7u95ra7yWebSYe6V8jzF04/OHNctuPF579msFf00RkJ+cLgVZVRPOQeH4/LwnEE2aof8DTz7McjXgr0pe6Pc8SHj9DvQ2eeqYT2NUQDHhenTcKj5Nydn+r4apUKpVKpVKpVCqVSqVSqVQqlUqlUqlUKpVKpVKpVKr/q1/INjdd:B590
+    eJzs2kEOgyAURVESFsbWXZI7sKYFpE06f9FzByToF3LmliJJkiRJ/2rHfeLJjic7nux4suPJjic7nux4suPJjic7nux4suPJjic7nux4suPJjic7nux4suPJjic7nuxu69mWHxLqUdpez4fn8rXtw315b8fINdzn9rqOtM9dY245YLz4PXT9Yt57HTqHZzw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PI/wvAAAAP//7NoxbtwwEEZhCixY6gg6Cq+VymLgg0W5iXIDlQQiaDI/NwsECOykCTRw3issyVTBD9LOujAePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw/OeeDxKe2OGJHZ7Y4YkdntjhiR2e2OGJHZ7Y4YkdntjhiR2e2OGJHZ7Y4YkdntjhiR2e2H1EDxERERH9dVP3H/lMaR2XNc3W07xPZldadv9NOXytpfTii9u4Smlpd233jw3PYmmyXZfr8NQ+PObMVM/H2osfjrRcuiuwJ8tTbSvjf3KTDY9d8kymza+WstYuP5y60v3txh2/X5FntV2MJM9iejjy5PHHvFkrvjZdqeiRWUuP9y9osxgmj16uaXjyw1O0eT/ZtJYvf3LybLq/3brn91q6FHYsw5Ofns/ydH8Ofr4tDik+HgZz0/3t5l2/XZXnmo/lmz4sZXgc4p5zPnyg5XPZtTZr3Nl0aeblwB59bKaz9Pr16dFQdsjU593Psx/qZqm6Z1tfT3nmuJ4sTz5zr02e2TS7HpBjHMrhurb6yPOvn/rqOo3DdvO236wMT8+9DM/y9PjK/tOT5dHsrq22T/KsgT3f9b51fQv94tnSb57L37c2rO750v7lnn4AAAD//+2cQYrcMBBFZRTQ0hcI6CjOsbIYRh5mkWNFuxwjDnMBhWwE0dipXyVpegLJJoGRoD4NDXYv9Cyp6lcJ97983A9OO41nC51njY0n18WHwrcrz7j51D01ngXx+p6G/hkhgaYqYuN0nlx5cO9+YJ5H5iGbycbnLtDmiP7LAY/G+afxHOx9xOp8HJfnnW08bBQKeA7/tWDg7HccshHxmMqDUPBhXB6ZFrMmLg6WDJ4EP0CVA/trKzw781ywcWZoPyo8BIONsSTwZI+JobkIiOWn7zwEw7tsfB7yAzBylnmKhxFFvXPy232dx5Zq3YbnCcRTkHPICHwCT+R652Kv2nkceKKZgAdP/UTOCeZcCq2waIrh+GZueBAykH+G51lQuAXheQ8P7SNtFBhRuvzceXySdsLwPLYGY7+jKwKeg3kQI7afnWc7JuFx3PjYKUYLD1mdJRt80Zw9dR5ahbXfsL/hiP8uHt9aH/rGbyozj208xnaey0zCw422P/KkysO5dAoepJ/Gc2dOWGubXnhQzyF+U7hOU/BQXA6V53sRHtd4sms8LrM7NRPwACkID+Wf9XjhsTc8id2pGZ8HsRhjxnq7luISih+DsE2LTPoh9JtKZ4bngafZvnEnl/2Oyxt4VsIynF3Ry+L+2+PpJ+HhGgE8gfuJ0R1kbyjhLLWfKDwPF7ftB+exr3nwTx07LS7u95ra7yWebSYe6V8jzF04/OHNctuPF579msFf00RkJ+cLgVZVRPOQeH4/LwnEE2aof8DTz7McjXgr0pe6Pc8SHj9DvQ2eeqYT2NUQDHhenTcKj5Nydn+r4apUKpVKpVKpVCqVSqVSqVQqlUqlUqlUKpVKpVKpVKr/q1/INjdd:B590
     ^FT1735,339^A0N,50,50^FH\\^FDF^FS
     ^FT95,339^A0N,50,45^FH\\^FDI^FS
     ^PQ1,0,1,Y^XZ`, 'ZT421');
@@ -861,7 +884,6 @@ P1
     panelCurrentIp.textContent = currentPrinterIp;
     const modalIp = document.getElementById('modal-ip');
     if (modalIp) modalIp.textContent = currentPrinterIp;
-    document.getElementById('modal-link').href = `http://${currentPrinterIp}`;
     showToast('IP definido: ' + currentPrinterIp);
     logPanel('IP definido: ' + currentPrinterIp);
     });
@@ -1039,6 +1061,155 @@ P1
 
     loadPrinters();
     updateMapImage();
+
+    // --- FUNCIONALIDADE DE ACESSO A WEB INTERFACE ---
+    const browserModal = document.getElementById('browser-modal');
+    const browserFrame = document.getElementById('internal-frame');
+    const browserUrlBar = document.getElementById('browser-url');
+    const browserSpinner = document.getElementById('browser-spinner');
+    let currentBrowserUrl = '';
+
+    window.openBrowser = (ip) => {
+        browserFrame.src = 'about:blank';
+        browserModal.classList.remove('hidden');
+        loadPage(`http://${ip}/`);
+    };
+
+    // Escuta mensagens do Iframe (Navegação e Submissão)
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'navigate') {
+            loadPage(event.data.url);
+        } else if (event.data.type === 'submit') {
+            loadPage(event.data.url, event.data.method, event.data.data);
+        }
+    });
+
+    async function loadPage(url, method = 'GET', formData = null) {
+        browserSpinner.classList.remove('hidden');
+        browserUrlBar.textContent = url;
+        currentBrowserUrl = url;
+
+        let fetchOptions = {};
+        let proxyUrl = `${API_BASE_URL}?url=${encodeURIComponent(url)}&as_json=1`;
+
+        // Tratamento Especial para Formulários GET (ex: Botão Imprimir)
+        // Se for GET com dados, transformamos em Query String na URL
+        if (method === 'GET' && formData) {
+             // URLSearchParams cria a string ?key=val&key2=val2
+             const params = new URLSearchParams(formData).toString();
+             // Verifica se a URL já tem ? ou não
+             const separator = url.includes('?') ? '&' : '?';
+             const finalUrl = `${url}${separator}${params}`;
+             
+             // Atualiza a URL que vamos chamar
+             proxyUrl = `${API_BASE_URL}?url=${encodeURIComponent(finalUrl)}&as_json=1`;
+             
+             // Atualiza visualmente para o usuário ver
+             browserUrlBar.textContent = finalUrl;
+             currentBrowserUrl = finalUrl;
+        }
+        
+        // Tratamento para POST (Login / Senhas)
+        else if (method === 'POST') {
+            fetchOptions = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url, form_data: formData, as_json: 1 })
+            };
+            proxyUrl = API_BASE_URL;
+        }
+
+        try {
+            const res = await fetch(proxyUrl, fetchOptions);
+            const data = await res.json();
+
+            if (data.effective_url) {
+                currentBrowserUrl = data.effective_url;
+                browserUrlBar.textContent = currentBrowserUrl;
+            }
+
+            const htmlContent = atob(data.body_base64);
+            
+            // Script injetado para capturar interações
+            const injectionScript = `
+                <base href="${currentBrowserUrl}">
+                <script>
+                    document.addEventListener('click', e => {
+                        const link = e.target.closest('a');
+                        if (link && link.href && !link.href.startsWith('javascript:') && !link.href.startsWith('#')) {
+                            e.preventDefault();
+                            window.parent.postMessage({type: 'navigate', url: link.href}, '*');
+                        }
+                    });
+
+                    document.addEventListener('submit', e => {
+                        e.preventDefault();
+                        const form = e.target;
+                        
+                        // Captura o botão que enviou o form (importante para value="Imprimir")
+                        const submitter = e.submitter;
+                        const formData = new FormData(form);
+                        
+                        if(submitter && submitter.name) {
+                            formData.append(submitter.name, submitter.value);
+                        }
+
+                        const data = {};
+                        formData.forEach((value, key) => data[key] = value);
+                        
+                        // Detecta se o form é GET ou POST
+                        const method = (form.getAttribute('method') || 'GET').toUpperCase();
+
+                        window.parent.postMessage({
+                            type: 'submit', 
+                            url: form.action, 
+                            method: method, 
+                            data: data
+                        }, '*');
+                    });
+                <\/script>
+            `;
+
+            const finalHtml = injectionScript + htmlContent;
+
+            // Reescreve recursos estáticos para o Proxy
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(finalHtml, 'text/html');
+            doc.querySelectorAll('img, link[rel="stylesheet"]').forEach(el => {
+                const attr = el.tagName === 'LINK' ? 'href' : 'src';
+                const val = el.getAttribute(attr);
+                if(val && !val.startsWith('data:')) {
+                    const absUrl = new URL(val, currentBrowserUrl).href;
+                    el.setAttribute(attr, `${API_BASE_URL}?url=${encodeURIComponent(absUrl)}`);
+                }
+            });
+
+            const frameDoc = browserFrame.contentDocument || browserFrame.contentWindow.document;
+            frameDoc.open();
+            frameDoc.write(doc.documentElement.outerHTML);
+            frameDoc.close();
+
+        } catch (e) {
+            const frameDoc = browserFrame.contentDocument || browserFrame.contentWindow.document;
+            frameDoc.body.innerHTML = `<h2 style="color:red;padding:20px">Erro: ${e.message}</h2>`;
+        } finally {
+            browserSpinner.classList.add('hidden');
+        }
+    }
+
+    document.querySelector('.close-browser').onclick = () => {
+        document.getElementById('browser-modal').classList.add('hidden');
+        document.getElementById('internal-frame').src = "about:blank";
+    };
+    document.getElementById('browser-refresh').onclick = () => loadPage(currentBrowserUrl);
+
+    document.getElementById('modal-web-btn').onclick = () => {
+        if(currentPrinterIp) {
+            window.openBrowser(currentPrinterIp);
+        } else {
+            showToast("Erro: Selecione uma impressora");
+        }
+    };
 
     });
 </script>
