@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>MapaNto</title>
+  <title>MapaNto - Monitor de Impressoras</title>
   <script src="https://cdn.tailwindcss.com"></script>
 
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -12,481 +12,800 @@
 
   <link rel="icon" type="image/png" href="./pardinilogo.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./pardinilogo.png">
-  <meta name="theme-color" content="#F3F0EC">
+  <meta name="theme-color" content="#0f172a">
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    body { font-family: 'Inter', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    :root {
+      --bg: #f3f0ec;
+      --ink: #1f2937;
+      --accent: #e07a5f;
+      --accent-2: #3D405B;
+      --ok: #10b981;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --gray-line: #e5e7eb;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--ink); }
 
-    /* pontos da impressora */
-    .printer-point { 
-      position: absolute; width: 24px; height: 24px; border-radius: 9999px; cursor: pointer;
-      transition: all 0.25s ease; display:flex; align-items:center; justify-content:center;
-      transform:translate(-50%,-50%); z-index:20;
+    /* ===== PONTOS NO MAPA ===== */
+    .printer-point {
+      position: absolute; width: 26px; height: 26px; border-radius: 9999px; cursor: pointer;
+      transition: transform .25s ease, box-shadow .25s ease;
+      display: flex; align-items: center; justify-content: center;
+      transform: translate(-50%, -50%); z-index: 20;
       --point-color: #3b82f6;
+      background: var(--point-color);
+      box-shadow: 0 6px 14px rgba(0,0,0,.18), 0 0 0 3px rgba(255,255,255,.85);
     }
-    .printer-point::before { 
-      content:''; position:absolute; width:100%; height:100%; border-radius:9999px;
-      animation:pulse 2s infinite; background-color: var(--point-color); opacity:0.75; 
+    .printer-point::before {
+      content: ''; position: absolute; inset: 0; border-radius: 9999px;
+      background: var(--point-color); opacity: .55; animation: pulse 2s infinite;
     }
-    .printer-point:hover { transform: translate(-50%, -50%) scale(1.25); z-index:25; }
-    .printer-point-icon{ width:14px; height:14px; color:white; z-index:30; }
-    @keyframes pulse { 0%{transform:scale(0.95);}70%{transform:scale(1);}100%{transform:scale(0.95);} }
-    .highlighted { transform: translate(-50%, -50%) scale(1.6) !important; z-index:60 !important; transition: transform .2s ease; }
-    .highlighted::before { animation: highlight-pulse 1s infinite !important; background-color: rgba(59,130,246,0.95) !important; }
-    @keyframes highlight-pulse { 0%{box-shadow:0 0 0 0 rgba(59,130,246,0.8);}70%{box-shadow:0 0 0 18px rgba(59,130,246,0);}100%{box-shadow:0 0 0 0 rgba(59,130,246,0);} }
+    .printer-point:hover { transform: translate(-50%, -50%) scale(1.25); z-index: 25; }
+    .printer-point-icon { width: 14px; height: 14px; color: white; z-index: 30; position: relative; }
+    .printer-point.status-ok    { --point-color: #10b981; }
+    .printer-point.status-err   { --point-color: #ef4444; }
+    .printer-point.status-warn  { --point-color: #f59e0b; }
+    .printer-point.status-unknown { --point-color: #6b7280; }
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: .55; }
+      70% { transform: scale(1.6); opacity: 0; }
+      100% { transform: scale(0.95); opacity: 0; }
+    }
+    .highlighted { transform: translate(-50%, -50%) scale(1.7) !important; z-index: 60 !important; }
+    .highlighted::before { animation: highlight-pulse 1s infinite !important; }
+    @keyframes highlight-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(59,130,246,.7); }
+      70% { box-shadow: 0 0 0 22px rgba(59,130,246,0); }
+      100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    }
 
-    .icon-hitbox { display:inline-flex; align-items:center; justify-content:center; padding:8px; border-radius:9999px; cursor:pointer; -webkit-tap-highlight-color: transparent; }
-    .modal-backdrop { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index:40; display:flex; align-items:center; justify-content:center; }
-    .modal-content { z-index:50; }
-    .toast { position: fixed; top:20px; right:20px; background:#3D405B; color:white; padding:12px 20px; border-radius:8px; z-index:100; opacity:0; transform: translateY(-20px); transition: opacity .5s, transform .5s; }
-    .toast.show { opacity:1; transform:translateY(0); }
-    #map-tooltip { position:absolute; background:#3D405B; color:white; padding:8px 12px; border-radius:6px; font-size:.875rem; line-height:1.4; opacity:0; visibility:hidden; transition:opacity .15s, visibility .15s; pointer-events:none; z-index:60; transform: translate(-50%,-125%); white-space:nowrap; }
-    #map-tooltip.show { opacity:1; visibility:visible; }
+    .icon-hitbox { display: inline-flex; align-items: center; justify-content: center; padding: 8px; border-radius: 9999px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
-    .focus-label { position:absolute; transform: translate(-50%,-120%); background: rgba(255,255,255,0.95); border-radius:6px; padding:6px 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.15); z-index:45; font-weight:600; white-space:nowrap; }
+    /* ===== MODAIS ===== */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, .55);
+      z-index: 70; display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-content { z-index: 80; }
 
-    #map-inner { position: relative; width: 100%; height: 100%; transform-origin: 0 0; transition: transform 250ms cubic-bezier(.2,.9,.3,1); }
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed; top: 20px; right: 20px;
+      background: #0f172a; color: white; padding: 12px 20px;
+      border-radius: 10px; z-index: 200; opacity: 0; transform: translateY(-20px);
+      transition: opacity .35s, transform .35s;
+      box-shadow: 0 14px 30px rgba(0,0,0,.28);
+      max-width: 320px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { background: #065f46; }
+    .toast.error { background: #7f1d1d; }
 
-    /* busca expandida */
+    /* ===== TOOLTIP MAPA ===== */
+    #map-tooltip {
+      position: absolute; background: #0f172a; color: white;
+      padding: 8px 12px; border-radius: 8px; font-size: .8rem; line-height: 1.35;
+      opacity: 0; visibility: hidden; transition: opacity .15s, visibility .15s;
+      pointer-events: none; z-index: 60; transform: translate(-50%, -130%); white-space: nowrap;
+      box-shadow: 0 8px 18px rgba(0,0,0,.25);
+    }
+    #map-tooltip.show { opacity: 1; visibility: visible; }
+
+    .focus-label {
+      position: absolute; transform: translate(-50%, -120%);
+      background: rgba(255,255,255,.96); border-radius: 8px; padding: 8px 14px;
+      box-shadow: 0 10px 22px rgba(0,0,0,.18); z-index: 45;
+      font-weight: 600; white-space: nowrap;
+    }
+
+    #map-inner {
+      position: relative; width: 100%; height: 100%;
+      transform-origin: 0 0;
+      transition: transform 250ms cubic-bezier(.2,.9,.3,1);
+    }
+    #map-container.pick-mode { outline: 3px dashed var(--accent); cursor: crosshair; }
+    #map-container.pick-mode::after {
+      content: 'Clique no mapa para fixar a posição da impressora';
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: white; padding: 8px 16px;
+      border-radius: 999px; font-weight: 600; font-size: 13px;
+      z-index: 50; pointer-events: none;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
+
+    /* ===== BUSCA EXPANSÍVEL ===== */
     #search-input { transition: width 300ms ease-in-out; width: 0; padding-left: 0; padding-right: 0; }
-    #search-container.expanded #search-input { width: 250px; padding-left: 1rem; padding-right: 0.5rem; }
-    #search-results { position: absolute; top: 110%; right: 0; width: 300px; background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 100; max-height: 300px; overflow-y: auto; display: none; }
-    .result-item:hover, .result-item:focus { background-color: #f0f0f0; outline: none; }
+    #search-container.expanded #search-input { width: 250px; padding-left: 1rem; padding-right: .5rem; }
+    #search-results {
+      position: absolute; top: 110%; right: 0; width: 320px;
+      background: white; border-radius: 12px; box-shadow: 0 16px 36px rgba(0,0,0,.18);
+      z-index: 100; max-height: 360px; overflow-y: auto; display: none;
+    }
+    .result-item:hover, .result-item:focus { background-color: #f8fafc; outline: none; }
 
-    .square { width: 16px; height: 16px; border-radius: 3px; display: inline-block; }
+    /* ===== STATUS BADGE ===== */
+    .square { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
     .status-row { display: flex; align-items: center; gap: 10px; }
     .status-text { font-weight: 700; font-size: 18px; }
 
-    /* Painel Lateral - CORREÇÃO DE OVERFLOW */
+    /* ===== SIDEBAR LATERAL ===== */
     #ip-tools-sidebar {
-      position: fixed; top: 0; right: 0; width: 350px; height: 100vh;
-      background: white; z-index: 60; box-shadow: -10px 0 30px rgba(0,0,0,0.08);
-      /* padding removido daqui para ir para o container interno */
+      position: fixed; top: 0; right: 0; width: 360px; height: 100vh;
+      background: white; z-index: 60; box-shadow: -14px 0 38px rgba(0,0,0,.08);
       display: flex; flex-direction: column;
       transition: transform .28s ease;
-      overflow: visible; /* IMPORTANTE: Permite o botão sair da caixa */
+      overflow: visible;
     }
-    
-    /* Area interna rolável */
     .sidebar-scroll-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 18px;
-      display: flex; flex-direction: column; gap: 12px;
+      flex: 1; overflow-y: auto; padding: 18px;
+      display: flex; flex-direction: column; gap: 14px;
     }
-
     #ip-tools-sidebar.collapsed { transform: translateX(100%); }
-    
-    #ip-tools-sidebar .header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-    #ip-tools-sidebar h3 { margin:0; font-size:1.05rem; }
-    #ip-tools-sidebar .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
-    #ip-tools-sidebar .controls { display:flex; gap:8px; align-items:center; }
-    #ip-tools-sidebar .controls input { flex:1; min-width:0; }
-    #panel-buttons { display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; }
-    #panel-log { height: 150px; overflow-y: auto; background:#0f172a; color:#d1fae5; padding:12px; border-radius:8px; font-family: ui-monospace, Menlo, Monaco, monospace; font-size:12px; }
-    #panel-current-ip { padding:8px; background:#f3f4f6; border-radius:6px; font-family: ui-monospace, Menlo, Monaco, monospace; }
-    
+    #ip-tools-sidebar h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+    #panel-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    #panel-log {
+      height: 160px; overflow-y: auto;
+      background: #0b1220; color: #d1fae5;
+      padding: 12px; border-radius: 10px;
+      font-family: ui-monospace, Menlo, Monaco, monospace; font-size: 12px;
+      line-height: 1.45;
+    }
+    #panel-log .log-err { color: #fca5a5; }
+    #panel-log .log-ok  { color: #86efac; }
+    #panel-current-ip { padding: 8px 10px; background: #f3f4f6; border-radius: 8px; }
+
     @media (max-width: 900px) {
       #ip-tools-sidebar { width: 320px; }
       .container-with-sidebar { margin-right: 0; }
     }
     @media (min-width: 901px) {
-      .container-with-sidebar { margin-right: 360px; }
+      .container-with-sidebar { margin-right: 370px; }
     }
 
-    /* Botão Collapse - CORRIGIDO */
     #collapse-panel {
       position: absolute; left: -36px; top: 10px;
       width: 36px; height: 36px;
       display: flex; align-items: center; justify-content: center;
-      background: #ffffff; border: 1px solid #e5e7eb; border-right: none;
-      border-radius: 8px 0 0 8px; z-index: 9999;
-      cursor: pointer; box-shadow: -4px 4px 12px rgba(0,0,0,0.05);
-      font-weight: bold; color: #555;
+      background: #fff; border: 1px solid var(--gray-line); border-right: none;
+      border-radius: 10px 0 0 10px; z-index: 9999;
+      cursor: pointer; box-shadow: -6px 6px 14px rgba(0,0,0,.06);
+      font-weight: 700; color: #475569;
     }
-    #collapse-panel:hover { background: #f9fafb; color: #000; }
+    #collapse-panel:hover { background: #f8fafc; color: #0f172a; }
 
-    /* --- ESTILOS PARA NAVEGADOR INTERNO --- */
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 60; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(3px); }
+    /* ===== CARDS DE ESTATÍSTICAS ===== */
+    .stat-card {
+      background: white; border-radius: 14px; padding: 16px 18px;
+      box-shadow: 0 6px 18px rgba(15,23,42,.06);
+      display: flex; align-items: center; gap: 14px;
+      border: 1px solid var(--gray-line);
+    }
+    .stat-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; flex-shrink: 0;
+    }
+    .stat-value { font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+    .stat-label { font-size: .8rem; color: #64748b; }
+
+    /* ===== BOTÕES ===== */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 10px; font-weight: 600; transition: transform .1s, box-shadow .1s, background .15s; cursor: pointer; }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: #c96650; }
+    .btn-secondary { background: white; color: var(--accent-2); border: 1px solid var(--gray-line); }
+    .btn-secondary:hover { background: #f8fafc; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-ghost { background: transparent; color: #475569; }
+    .btn-ghost:hover { background: #f1f5f9; }
+
+    /* ===== INPUTS ===== */
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: .8rem; font-weight: 600; color: #334155; }
+    .field input, .field select, .field textarea {
+      padding: 9px 12px; border-radius: 9px; border: 1px solid var(--gray-line);
+      background: white; transition: border-color .15s, box-shadow .15s;
+      font-size: .9rem;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(224,122,95,.18);
+    }
+
+    /* ===== AUTH GATE ===== */
+    #auth-gate {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #0f172a 0%, #312e81 60%, #4c1d95 100%);
+    }
+    #auth-card {
+      width: min(420px, 92vw); background: white; border-radius: 18px; padding: 32px;
+      box-shadow: 0 30px 70px rgba(0,0,0,.35);
+    }
+    #auth-card .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    #auth-card .brand img { width: 40px; height: 40px; border-radius: 8px; }
+
+    /* ===== TOPBAR USER ===== */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+    }
+
+    /* ===== NAVEGADOR INTERNO ===== */
+    .browser-modal-inner {
+      background: white; width: 98%; height: 95vh;
+      border-radius: 14px; box-shadow: 0 30px 70px rgba(0,0,0,.45);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ===== TABS (modal) ===== */
+    .tab-btn {
+      padding: 12px 16px; font-size: .85rem; font-weight: 600;
+      color: #64748b; border-bottom: 2px solid transparent;
+      transition: all .15s; cursor: pointer; background: transparent;
+    }
+    .tab-btn:hover { color: #1f2937; }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .action-card {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 14px 8px; border-radius: 12px; background: #f8fafc;
+      border: 1px solid var(--gray-line); cursor: pointer; transition: all .15s;
+      font-size: .75rem; font-weight: 600; color: #475569;
+    }
+    .action-card:hover { background: white; border-color: var(--accent); color: var(--accent-2); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+    .action-card:active { transform: translateY(0); }
+
+    /* ===== BANNER ===== */
+    .banner {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border: 1px solid #fcd34d; border-radius: 14px;
+      padding: 14px 18px; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, .15);
+    }
+    .banner-icon { font-size: 1.5rem; }
+
+    /* ===== TABELA ===== */
+    .printer-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .printer-table th { text-align: left; padding: 10px 12px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+    .printer-table td { padding: 10px 12px; border-bottom: 1px solid var(--gray-line); }
+    .printer-table tr:hover td { background: #f8fafc; }
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: .7rem; font-weight: 700; }
+    .pill-ok { background: #ecfdf5; color: #065f46; }
+    .pill-err { background: #fef2f2; color: #991b1b; }
+    .pill-unknown { background: #f1f5f9; color: #475569; }
   </style>
 </head>
-<body class="bg-[#F3F0EC] text-[#3D405B]">
-  <div id="side-actions" class="fixed top-4 right-16 z-30 flex flex-col items-end gap-3">
+<body class="text-[#1f2937]">
+
+  <!-- ============ AUTH GATE ============ -->
+  <div id="auth-gate" style="display:none;">
+    <div id="auth-card">
+      <div class="brand">
+        <img src="./pardinilogo.png" alt="logo" onerror="this.style.display='none'"/>
+        <div>
+          <div class="text-lg font-bold">MapaNto</div>
+          <div class="text-xs text-gray-500">Acesso restrito - faça login para continuar</div>
+        </div>
+      </div>
+      <form id="login-form" class="flex flex-col gap-3">
+        <div class="field">
+          <label for="login-email">E-mail</label>
+          <input id="login-email" type="email" autocomplete="username" required placeholder="voce@empresa.com" />
+        </div>
+        <div class="field">
+          <label for="login-pass">Senha</label>
+          <input id="login-pass" type="password" autocomplete="current-password" required placeholder="••••••••" />
+        </div>
+        <div id="auth-error" class="text-xs text-red-600 hidden"></div>
+        <button id="login-btn" type="submit" class="btn btn-primary w-full mt-2">Entrar</button>
+        <div class="text-xs text-gray-500 text-center mt-2">
+          Não tem conta? Solicite ao administrador.
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ SIDE ACTIONS (busca) ============ -->
+  <div id="side-actions" class="fixed top-4 right-16 z-30 flex flex-col items-end gap-3" style="display:none;">
     <div id="search-container" class="relative flex items-center justify-end bg-white rounded-full shadow-md" aria-expanded="false" aria-controls="search-results">
       <form id="search-form" class="flex items-center" role="search">
-        <input id="search-input" type="text" placeholder="Buscar por Nome ou SELB..." class="h-12 border-none rounded-l-full focus:ring-0 bg-transparent" aria-label="Buscar impressora">
+        <input id="search-input" type="text" placeholder="Buscar por Nome, SELB ou IP..." class="h-12 border-none rounded-l-full focus:ring-0 bg-transparent" aria-label="Buscar impressora">
         <div id="search-hitbox" class="icon-hitbox" title="Buscar">
-            <button type="button" id="search-icon-btn" class="w-10 h-10 flex items-center justify-center text-gray-600" aria-label="Abrir pesquisa">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            </button>
+          <button type="button" id="search-icon-btn" class="w-10 h-10 flex items-center justify-center text-gray-600" aria-label="Abrir pesquisa">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          </button>
         </div>
       </form>
       <div id="search-results" aria-hidden="true" role="listbox"></div>
     </div>
   </div>
 
-  <div id="main-wrapper" class="container mx-auto p-4 md:p-8 container-with-sidebar">
-    <header class="text-center mb-6">
-        <h1 class="text-3xl md:text-4xl font-bold">Mapeamento de Impressoras Térmicas</h1><h5>By Pedro Assis e Diego Pereira</h5>
-        <select id="floor-select" class="mt-4 p-2 border rounded" aria-label="Selecionar andar">
-          <option value="1">Andar 1</option>
-          <option value="2">Andar 2</option>
-        </select>
-    </header>
-    <main id="map-and-content">
-      <div id="map-container" 
-           class="relative mx-auto shadow-2xl rounded-lg overflow-hidden border-4 border-transparent transition-colors duration-300" 
-           style="width: min(3840px, 92vw); aspect-ratio: 3840 / 2715;">
-        <div id="map-inner" class="relative w-full h-full">
-          <img id="map-image" src="plantanto.jpg" alt="Planta do escritório" 
-               class="w-full h-full object-contain bg-white" 
-               onerror="this.onerror=null;this.src='https://placehold.co/3840x2715/ffffff/cccccc?text=Planta+Indispon%C3%ADvel';">
+  <!-- ============ APP ============ -->
+  <div id="main-wrapper" class="container mx-auto p-4 md:p-6 container-with-sidebar" style="display:none;">
+
+    <!-- TOPBAR -->
+    <header class="mb-6">
+      <div class="topbar">
+        <div class="flex items-center gap-3">
+          <img src="./pardinilogo.png" alt="logo" class="w-10 h-10 rounded-lg" onerror="this.style.display='none'"/>
+          <div>
+            <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">Mapeamento de Impressoras Térmicas</h1>
+            <p class="text-xs text-gray-500">Monitor, comandos, diagnóstico - by Pedro Assis e Diego Pereira</p>
+          </div>
         </div>
-        <div id="map-tooltip" role="status" aria-live="polite"></div>
+        <div class="flex items-center gap-2">
+          <select id="floor-select" class="field-select px-3 py-2 border rounded-lg bg-white text-sm" aria-label="Selecionar andar">
+            <option value="1">Andar 1</option>
+            <option value="2">Andar 2</option>
+          </select>
+          <button id="view-toggle" class="btn btn-secondary" title="Alternar visualização">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <span id="view-toggle-label">Lista</span>
+          </button>
+          <button id="btn-add-printer" class="btn btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Adicionar
+          </button>
+          <div class="flex items-center gap-2 ml-2 pl-2 border-l text-xs text-gray-600">
+            <span id="user-email" class="font-medium"></span>
+            <button id="btn-logout" class="btn btn-ghost text-xs" title="Sair">Sair</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- STATS -->
+    <!-- BANNER (DB vazio) -->
+    <div id="empty-db-banner" class="banner hidden">
+      <div class="banner-icon">📥</div>
+      <div class="flex-1">
+        <div class="font-bold text-amber-900">Nenhuma impressora cadastrada</div>
+        <div class="text-xs text-amber-800/80">Importe ~90 impressoras conhecidas ou adicione uma nova manualmente.</div>
+      </div>
+      <button id="btn-seed-banner" class="btn btn-primary text-sm">Importar agora</button>
+    </div>
+
+    <section id="stats-grid" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#3b82f6;"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg></div>
+        <div><div class="stat-value" id="stat-total">--</div><div class="stat-label">Impressoras (total)</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#10b981;"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></div>
+        <div><div class="stat-value" id="stat-ok">--</div><div class="stat-label">Online (último check)</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#ef4444;"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+        <div><div class="stat-value" id="stat-err">--</div><div class="stat-label">Com problema</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#6b7280;"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/></svg></div>
+        <div><div class="stat-value" id="stat-unknown">--</div><div class="stat-label">Não verificadas</div></div>
+      </div>
+    </section>
+
+    <!-- MAIN -->
+    <main id="map-and-content">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex gap-2 items-center">
+          <button id="btn-scan-all" class="btn btn-secondary text-xs" title="Verifica status de todas as impressoras do andar">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15M4.582 9a8.003 8.003 0 0115.357 2M4.582 9H9"/></svg>
+            Verificar todas
+          </button>
+          <span id="scan-progress" class="text-xs text-gray-500"></span>
+        </div>
+      </div>
+
+      <!-- VIEW: MAPA -->
+      <div id="view-map">
+        <div id="map-container"
+             class="relative mx-auto shadow-2xl rounded-2xl overflow-hidden border-4 border-transparent transition-colors duration-300 bg-white"
+             style="width: min(3840px, 92vw); aspect-ratio: 3840 / 2715;">
+          <div id="map-inner" class="relative w-full h-full">
+            <img id="map-image" src="plantanto.jpg" alt="Planta do escritório"
+                 class="w-full h-full object-contain bg-white"
+                 onerror="this.onerror=null;this.src='https://placehold.co/3840x2715/ffffff/cccccc?text=Planta+Indispon%C3%ADvel';">
+          </div>
+          <div id="map-tooltip" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <!-- VIEW: LISTA -->
+      <div id="view-list" class="hidden">
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden border">
+          <div class="p-4 border-b flex items-center gap-2">
+            <input id="list-search" type="text" placeholder="Filtrar..." class="flex-1 px-3 py-2 border rounded-lg text-sm" />
+            <select id="list-filter-status" class="px-3 py-2 border rounded-lg text-sm">
+              <option value="">Todos os status</option>
+              <option value="ok">Apenas Online</option>
+              <option value="err">Apenas com problema</option>
+              <option value="unknown">Não verificadas</option>
+            </select>
+          </div>
+          <div class="overflow-x-auto" style="max-height:65vh;">
+            <table class="printer-table">
+              <thead>
+                <tr>
+                  <th>Status</th><th>Nome</th><th>SELB</th><th>Depto</th><th>IP</th><th>Andar</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="list-tbody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </main>
   </div>
 
+  <!-- ============ MODAL DETALHES ============ -->
   <div id="details-modal" class="modal-backdrop hidden" aria-hidden="true">
-    <div class="modal-content bg-white w-11/12 max-w-md mx-auto rounded-lg shadow-xl p-6 relative" role="dialog" aria-modal="true">
-      <button class="close-modal-btn absolute top-4 right-4 text-gray-500 hover:text-gray-800" aria-label="Fechar">✕</button>
-      <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
-      <div class="space-y-3 text-gray-700">
-        <p><strong>Departamento:</strong> <span id="modal-department"></span></p>
-        <p><strong>SELB:</strong> <span id="modal-selb" class="font-mono bg-gray-100 px-2 py-1 rounded"></span></p>
-        <p><strong>Endereço IP:</strong> <span id="modal-ip" class="font-mono bg-gray-100 px-2 py-1 rounded"></span></p>
-        <p><strong>Observações:</strong> <div id="modal-observations" class="bg-gray-100 px-2 py-1 rounded mt-1 p-2 text-sm whitespace-pre-wrap"></div></p>
-      </div>
-      <div id="status-display" class="mt-4 p-4 bg-gray-50 rounded-lg hidden">
-        <div class="status-row">
-          <span id="status-sq" class="square" style="background:#ccc"></span>
-          <div id="status-text" class="status-text">--</div>
+    <div class="modal-content bg-white w-11/12 max-w-lg mx-auto rounded-2xl shadow-2xl relative overflow-hidden" role="dialog" aria-modal="true">
+      <!-- HERO -->
+      <div class="px-6 pt-6 pb-4 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white relative">
+        <button class="close-modal-btn absolute top-3 right-3 text-white/70 hover:text-white text-xl" aria-label="Fechar">✕</button>
+        <div class="flex items-start gap-3">
+          <div class="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h2 id="modal-title" class="text-xl font-bold leading-tight"></h2>
+            <div id="modal-department" class="text-xs text-white/70 mt-0.5"></div>
+            <div class="flex items-center gap-2 mt-2 text-xs">
+              <span class="px-2 py-1 rounded-md bg-white/10 backdrop-blur"><span class="text-white/60">SELB:</span> <span id="modal-selb" class="font-mono"></span></span>
+              <span class="px-2 py-1 rounded-md bg-white/10 backdrop-blur font-mono" id="modal-ip"></span>
+            </div>
+            <div id="modal-status-pill" class="mt-3"></div>
+          </div>
         </div>
-        <div id="status-message" class="message mt-2 text-sm"></div>
       </div>
-      <div class="mt-6 space-y-2">
-       <button id="modal-web-btn" class="block w-full text-center px-4 py-3 bg-[#E07A5F] text-white rounded-lg hover:bg-opacity-90 transition-colors font-semibold">
-  🖥️ Acessar Interface Web
-</button>
+
+      <!-- TABS -->
+      <div class="px-6 border-b">
+        <div class="flex gap-1" role="tablist">
+          <button class="tab-btn active" data-tab="actions">Ações</button>
+          <button class="tab-btn" data-tab="diag">Diagnóstico</button>
+          <button class="tab-btn" data-tab="info">Informações</button>
+        </div>
+      </div>
+
+      <!-- TAB: ACTIONS -->
+      <div class="tab-panel p-6" data-panel="actions">
+        <button id="modal-web-btn" class="w-full mb-3 px-4 py-3 bg-[#E07A5F] hover:bg-[#c96650] text-white rounded-xl transition font-semibold flex items-center justify-center gap-2 shadow-md">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          Acessar Interface Web
+        </button>
         <div class="grid grid-cols-3 gap-2">
-          <button id="check-status-btn" class="px-2 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm">Status</button>
-          <button id="calibrate-btn" class="px-2 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm">Calibrar</button>
-          <button id="head-test-btn" class="px-2 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm">Teste Cabeça</button>
+          <button id="check-status-btn" class="action-card">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <span>Status</span>
+          </button>
+          <button id="calibrate-btn" class="action-card">
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span>Calibrar</span>
+          </button>
+          <button id="head-test-btn" class="action-card">
+            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m3-4h6.5a1.5 1.5 0 011.5 1.5v4a1.5 1.5 0 01-1.5 1.5h-9a1.5 1.5 0 01-1.5-1.5V13a1.5 1.5 0 011.5-1.5z"/></svg>
+            <span>Cabeça</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB: DIAG -->
+      <div class="tab-panel p-6 hidden" data-panel="diag">
+        <button id="modal-info-btn" class="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition text-sm font-semibold flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707"/></svg>
+          Coletar Diagnóstico
+        </button>
+        <div id="modal-info-output" class="hidden mt-3 text-xs bg-slate-900 p-3 rounded-xl max-h-72 overflow-y-auto"></div>
+        <div id="status-display" class="mt-3 p-4 bg-gray-50 rounded-xl hidden">
+          <div class="status-row">
+            <span id="status-sq" class="square" style="background:#ccc"></span>
+            <div id="status-text" class="status-text">--</div>
+          </div>
+          <div id="status-message" class="message mt-2 text-sm text-gray-600"></div>
+        </div>
+      </div>
+
+      <!-- TAB: INFO -->
+      <div class="tab-panel p-6 hidden" data-panel="info">
+        <div class="space-y-3">
+          <div>
+            <div class="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Observações</div>
+            <div id="modal-observations" class="bg-gray-50 border rounded-xl mt-1 p-3 text-sm whitespace-pre-wrap min-h-[60px]"></div>
+          </div>
+          <button id="modal-repos-btn" class="btn btn-secondary text-sm w-full">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            Reposicionar no mapa
+          </button>
+          <div class="grid grid-cols-2 gap-2 pt-2">
+            <button id="modal-edit-btn" class="btn btn-secondary text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              Editar tudo
+            </button>
+            <button id="modal-delete-btn" class="btn btn-danger text-sm">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+              Excluir
+            </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-<!-- MODAL DE NAVEGAÇÃO INTERNA (cópia exata do segundo código) -->
-<div id="browser-modal" class="modal-backdrop hidden z-[90]">
-  <div class="bg-white w-[98%] h-[95vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-gray-400">
-    <div class="bg-gray-100 border-b p-2 flex items-center gap-3">
-      <button class="close-browser text-gray-400 hover:text-red-600 font-bold text-xl px-2">✕</button>
-      <button id="browser-refresh" class="text-gray-500 hover:text-blue-600">⟳</button>
-      <div class="flex-1 bg-white border border-gray-300 rounded px-3 py-1.5 text-xs font-mono text-gray-600 truncate flex items-center gap-2">
-        <span class="text-green-600">🔒</span>
-        <span id="browser-url">Aguardando...</span>
-      </div>
-      <div id="browser-spinner" class="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent hidden"></div>
-    </div>
-    <div class="flex-1 bg-white relative">
-      <iframe id="internal-frame" class="w-full h-full border-0" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+  <!-- ============ MODAL ADICIONAR/EDITAR ============ -->
+  <div id="form-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content bg-white w-11/12 max-w-lg mx-auto rounded-2xl shadow-2xl p-6 relative">
+      <button class="close-form-btn absolute top-4 right-4 text-gray-500 hover:text-gray-800">✕</button>
+      <h2 id="form-title" class="text-xl font-bold mb-4">Nova Impressora</h2>
+      <form id="printer-form" class="grid grid-cols-2 gap-3">
+        <div class="field col-span-2">
+          <label>Nome *</label>
+          <input id="f-name" required />
+        </div>
+        <div class="field">
+          <label>SELB *</label>
+          <input id="f-selb" required />
+        </div>
+        <div class="field">
+          <label>Andar *</label>
+          <select id="f-floor"><option value="1">Andar 1</option><option value="2">Andar 2</option></select>
+        </div>
+        <div class="field col-span-2">
+          <label>IP *</label>
+          <input id="f-ip" placeholder="172.19.114.25" required />
+        </div>
+        <div class="field col-span-2">
+          <label>Departamento</label>
+          <input id="f-department" />
+        </div>
+        <div class="field col-span-2">
+          <label>Observações</label>
+          <textarea id="f-observations" rows="2"></textarea>
+        </div>
+        <div class="field col-span-2">
+          <label>Posição no mapa</label>
+          <div class="flex items-center gap-2">
+            <input id="f-pos" placeholder="top:50.00%, left:50.00%" readonly class="flex-1 bg-gray-50" />
+            <button type="button" id="f-pickpos-btn" class="btn btn-secondary text-xs">Escolher no mapa</button>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">Após preencher os dados, clique em "Escolher no mapa" e depois clique no local desejado.</div>
+        </div>
+        <div class="col-span-2 flex justify-end gap-2 mt-2">
+          <button type="button" id="form-cancel-btn" class="btn btn-ghost">Cancelar</button>
+          <button type="submit" id="form-save-btn" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
     </div>
   </div>
-</div>
+
+  <!-- ============ NAVEGADOR INTERNO ============ -->
+  <div id="browser-modal" class="modal-backdrop hidden z-[90]">
+    <div class="browser-modal-inner">
+      <div class="bg-gray-100 border-b p-2 flex items-center gap-3">
+        <button class="close-browser text-gray-400 hover:text-red-600 font-bold text-xl px-2" title="Fechar">✕</button>
+        <button id="browser-back" class="text-gray-500 hover:text-blue-600 px-2" title="Voltar">←</button>
+        <button id="browser-refresh" class="text-gray-500 hover:text-blue-600 px-2" title="Atualizar">⟳</button>
+        <button id="browser-home" class="text-gray-500 hover:text-blue-600 px-2" title="Início">🏠</button>
+        <div class="flex-1 bg-white border border-gray-300 rounded px-3 py-1.5 text-xs font-mono text-gray-600 truncate flex items-center gap-2">
+          <span class="text-green-600">●</span>
+          <span id="browser-url">Aguardando...</span>
+        </div>
+        <button id="browser-newtab" class="btn btn-secondary text-xs" title="Abrir em nova aba do navegador real">Abrir externo</button>
+        <div id="browser-spinner" class="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent hidden"></div>
+      </div>
+      <div class="flex-1 bg-white relative">
+        <iframe id="internal-frame" class="w-full h-full border-0" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+      </div>
+    </div>
+  </div>
 
   <div id="toast-notification" class="toast" role="status" aria-live="polite"></div>
 
-  <aside id="ip-tools-sidebar" aria-label="IP Tools — Painel lateral">
+  <!-- ============ SIDEBAR ============ -->
+  <aside id="ip-tools-sidebar" aria-label="IP Tools" style="display:none;">
     <button id="collapse-panel" title="Ocultar painel">—</button>
-
     <div class="sidebar-scroll-area">
-        <div class="header">
-        <h3 class="font-semibold">IP Tools</h3>
-        </div>
+      <div class="flex items-center justify-between">
+        <h3>Painel de Controle</h3>
+        <span class="text-[10px] uppercase tracking-wider px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">Live</span>
+      </div>
 
-        <div class="border-t border-b border-gray-200 py-3 my-2 bg-yellow-50 p-2 rounded">
-            <label class="font-bold text-xs text-red-600 uppercase">Configuração da API (Proxy)</label>
-            <div class="text-[10px] text-gray-500 mb-1">Link atual do Cloudflare Tunnel:</div>
-            <div id="display-api-url" class="text-[10px] font-mono break-all bg-white border p-1 rounded mb-2 text-blue-600">...</div>
-            
-            <input id="new-api-url" type="text" placeholder="Cole o novo link aqui..." class="w-full p-1 border rounded text-xs mono mb-1" />
-            <button id="btn-save-api-url" class="w-full p-1 bg-gray-800 text-white rounded text-xs hover:bg-black transition">Atualizar Link da API</button>
-        </div>
+      <div class="border border-yellow-300 bg-yellow-50 p-3 rounded-xl">
+        <label class="font-bold text-xs text-amber-700 uppercase">API Proxy (Cloudflare)</label>
+        <div class="text-[10px] text-gray-500 mb-1 mt-1">Link atual:</div>
+        <div id="display-api-url" class="text-[10px] font-mono break-all bg-white border p-2 rounded mb-2 text-blue-700">...</div>
+        <input id="new-api-url" type="text" placeholder="Cole o novo link..." class="w-full p-2 border rounded text-xs mono mb-1" />
+        <button id="btn-save-api-url" class="w-full p-2 bg-gray-900 text-white rounded text-xs hover:bg-black transition">Atualizar Link</button>
+      </div>
 
-        <div>
-        <label class="font-semibold text-sm">IP (ex: 172.19.114.25)</label>
-        <div class="controls mt-2">
-            <input id="ip-input-panel" type="text" placeholder="ex: 172.19.114.25" class="p-2 border rounded mono" />
-            <button id="set-ip-panel" class="px-3 py-2 bg-sky-600 text-white rounded">Definir</button>
+      <!-- Card "Em foco" -->
+      <div id="focus-card" class="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 transition-all">
+        <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold flex items-center justify-between">
+          <span>Em foco</span>
+          <span id="focus-status-pill" class="text-[10px] normal-case font-medium px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">não selecionada</span>
         </div>
+        <div id="focus-name" class="font-bold text-base text-slate-800 mt-1 leading-tight">—</div>
+        <div id="focus-dept" class="text-xs text-slate-500 leading-tight"></div>
+        <div class="flex gap-2 mt-2">
+          <input id="ip-input-panel" type="text" placeholder="172.19.114.25" class="flex-1 p-1.5 border rounded mono text-xs bg-white" />
+          <button id="set-ip-panel" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-semibold">Definir</button>
         </div>
+        <div id="panel-current-ip" class="mono text-[11px] text-slate-600 mt-2 hidden"></div>
+      </div>
 
-        <div id="panel-buttons" class="mt-2">
-        <button id="btn-status-panel" class="p-2 bg-blue-600 text-white rounded">Status</button>
-        <button id="btn-load-factory-panel" class="p-2 bg-orange-600 text-white rounded">Load Factory</button>
-        <button id="btn-restart-panel" class="p-2 bg-red-600 text-white rounded">Reiniciar</button>
-        <button id="btn-zt421-panel" class="p-2 bg-indigo-700 text-white rounded">ZT421</button>
-        <button id="btn-calibrate-panel" class="p-2 bg-green-600 text-white rounded">Calibrar</button>
-        <button id="btn-headtest-panel" class="p-2 bg-purple-600 text-white rounded">Teste Cabeça</button>
-        </div>
+      <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold -mb-1">Ações para impressora em foco</div>
+      <div id="panel-buttons">
+        <button id="btn-status-panel" class="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold">Status</button>
+        <button id="btn-ping-panel" class="p-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded text-sm font-semibold">Ping</button>
+        <button id="btn-info-panel" class="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-semibold">Info</button>
+        <button id="btn-calibrate-panel" class="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-semibold">Calibrar</button>
+        <button id="btn-headtest-panel" class="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-semibold">Teste Cabeça</button>
+        <button id="btn-load-factory-panel" class="p-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm font-semibold">Load Factory</button>
+        <button id="btn-restart-panel" class="p-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold">Reiniciar</button>
+        <button id="btn-zt421-panel" class="p-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded text-sm font-semibold">ZT421</button>
+      </div>
 
-        <div>
-        <label class="font-semibold text-sm">IP atual:</label>
-        <div id="panel-current-ip" class="mono mt-1">nenhum</div>
-        </div>
+      <div class="field">
+        <label>Comando ZPL manual</label>
+        <textarea id="panel-rawcmd" class="w-full p-2 border rounded mono text-xs" rows="4" placeholder="Cole ou digite o ZPL aqui"></textarea>
+        <button id="btn-send-raw-panel" class="w-full mt-2 p-2 bg-black text-green-400 rounded mono text-sm">Enviar comando</button>
+      </div>
 
-        <div>
-        <label class="font-semibold text-sm">Comando ZPL manual</label>
-        <textarea id="panel-rawcmd" class="w-full mt-1 p-2 border rounded mono text-xs" rows="4" placeholder="Cole ou digite o ZPL aqui"></textarea>
-        <button id="btn-send-raw-panel" class="w-full mt-2 p-2 bg-black text-green-400 rounded mono">Enviar comando</button>
+      <div class="field">
+        <div class="flex items-center justify-between mb-1">
+          <label class="mb-0">Log de atividades</label>
+          <div class="flex gap-1">
+            <button id="btn-log-copy" class="text-[10px] px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded font-semibold" title="Copia o log completo (envie pra suporte)">📋 Copiar</button>
+            <button id="btn-log-clear" class="text-[10px] px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded font-semibold" title="Limpa o log">🗑</button>
+          </div>
         </div>
-
-        <div>
         <div id="panel-log" aria-live="polite" role="log"></div>
-        </div>
+      </div>
 
-        <div class="mt-auto text-xs text-gray-500">
-        <div>proxy.php — Túnel Cloudflare</div>
-        </div>
+      <div class="border-t pt-3 mt-2">
+        <button id="btn-seed-data" class="w-full p-2 bg-emerald-600 text-white rounded text-xs">Importar Dados Iniciais (apenas 1x)</button>
+        <p class="text-[10px] text-gray-500 mt-2">Use apenas se o banco estiver vazio. Importa ~90 impressoras conhecidas.</p>
+      </div>
+
+      <div class="mt-auto text-xs text-gray-500">
+        <div>proxy.php v2 - Túnel Cloudflare</div>
+      </div>
     </div>
   </aside>
 
-<script type="module">
-    // -----------------------------------------------------------
-    // 1. IMPORTAÇÃO DO FIREBASE (Versão Modular via CDN)
-    // -----------------------------------------------------------
+  <!-- ====================================================================
+       SCRIPT PRINCIPAL
+  ===================================================================== -->
+  <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, onSnapshot, setDoc, collection, addDoc, deleteDoc, updateDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    // 2. CONFIGURAÇÃO DO SEU PROJETO
+    // -------------- FIREBASE --------------
     const firebaseConfig = {
-      apiKey: "AIzaSyB1IF4Bt_g9jOdJbssEszdeZ2-3FJ2JsPY",
-      authDomain: "mapanto-3e05c.firebaseapp.com",
-      projectId: "mapanto-3e05c",
-      storageBucket: "mapanto-3e05c.firebasestorage.app",
-      messagingSenderId: "56800934624",
-      appId: "1:56800934624:web:3763334735bffd38fb6e85",
-      measurementId: "G-D7GZY5QBNM"
+      apiKey: "AIzaSyCorudBvnvd1SmmdQeeoOzbG9MyS14oQ4Y",
+      authDomain: "mapan-d4eed.firebaseapp.com",
+      projectId: "mapan-d4eed",
+      storageBucket: "mapan-d4eed.firebasestorage.app",
+      messagingSenderId: "183188679753",
+      appId: "1:183188679753:web:9329b2945e04500a356398",
+      measurementId: "G-2D7SPWR7LH"
     };
+    const app  = initializeApp(firebaseConfig);
+    const db   = getFirestore(app);
+    const auth = getAuth(app);
+    setPersistence(auth, browserLocalPersistence).catch(()=>{});
 
-    // 3. INICIALIZAÇÃO DO BANCO DE DADOS
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    const configDocRef   = doc(db, "system_config", "api_settings");
+    const printersColRef = collection(db, "printers");
 
-    // Referência para onde o link da API ficará salvo
-    // Coleção: 'system_config', Documento: 'api_settings'
-    const configDocRef = doc(db, "system_config", "api_settings");
+    let API_BASE_URL = "https://replacement-way-milk-auction.trycloudflare.com/proxy.php";
 
-    // Variável global para guardar o link atual
-    let API_BASE_URL = "https://replacement-way-milk-auction.trycloudflare.com/proxy.php"; // Fallback inicial
-
-    document.addEventListener('DOMContentLoaded', () => {
-    
-    // --- ELEMENTOS DO DOM ---
-    const mapContainer = document.getElementById('map-container');
-    const mapInner = document.getElementById('map-inner');
-    const tooltip = document.getElementById('map-tooltip');
-    const mapImage = document.getElementById('map-image');
-    const searchContainer = document.getElementById('search-container');
-    const searchHitbox = document.getElementById('search-hitbox');
-    const searchForm = document.getElementById('search-form');
-    const searchInput = document.getElementById('search-input');
-    const searchResultsPanel = document.getElementById('search-results');
-    const detailsModal = document.getElementById('details-modal');
-    const floorSelect = document.getElementById('floor-select');
-    const toastEl = document.getElementById('toast-notification');
-    const checkStatusBtn = document.getElementById('check-status-btn');
-    const calibrateBtn = document.getElementById('calibrate-btn');
-    const headTestBtn = document.getElementById('head-test-btn');
-
-    // Sidebar
-    const ipInputPanel = document.getElementById('ip-input-panel');
-    const setIpPanelBtn = document.getElementById('set-ip-panel');
-    const btnStatusPanel = document.getElementById('btn-status-panel');
-    const btnCalibratePanel = document.getElementById('btn-calibrate-panel');
-    const btnHeadTestPanel = document.getElementById('btn-headtest-panel');
-    const panelLog = document.getElementById('panel-log');
-    const panelCurrentIp = document.getElementById('panel-current-ip');
-    const collapsePanelBtn = document.getElementById('collapse-panel');
-    const btnLoadFactoryPanel = document.getElementById('btn-load-factory-panel');
-    const btnRestartPanel = document.getElementById('btn-restart-panel');
-    const btnZT421Panel = document.getElementById('btn-zt421-panel');
-    const rawCmdPanel = document.getElementById('panel-rawcmd');
-    const btnSendRawPanel = document.getElementById('btn-send-raw-panel');
-
-    // Elementos de Config API
-    const displayApiUrl = document.getElementById('display-api-url');
-    const newApiUrlInput = document.getElementById('new-api-url');
-    const btnSaveApiUrl = document.getElementById('btn-save-api-url');
-
-    // --- INTEGRANDO FIREBASE: ESCUTAR MUDANÇAS NO LINK EM TEMPO REAL ---
-    onSnapshot(configDocRef, (docSnap) => {
-        if (docSnap.exists() && docSnap.data().url) {
-            API_BASE_URL = docSnap.data().url;
-            if(displayApiUrl) {
-                displayApiUrl.textContent = API_BASE_URL;
-                // Efeito visual para mostrar que atualizou
-                displayApiUrl.style.backgroundColor = "#d1fae5"; // verde claro
-                setTimeout(() => displayApiUrl.style.backgroundColor = "white", 1000);
-            }
-            console.log("Link da API atualizado via Firebase:", API_BASE_URL);
-            if(panelLog) logPanel("Sistema: Link da API atualizado via nuvem.");
-        } else {
-            console.log("Nenhum link configurado no Firebase, usando padrão.");
-        }
-    }, (error) => {
-        console.error("Erro ao ler Firebase:", error);
-    });
-
-    // --- INTEGRANDO FIREBASE: SALVAR NOVO LINK ---
-    if(btnSaveApiUrl) {
-        btnSaveApiUrl.addEventListener('click', async () => {
-            let newUrl = newApiUrlInput.value.trim();
-            if(!newUrl) return alert("Por favor, cole um link válido.");
-            
-            // Validação simples
-            if(!newUrl.endsWith('.php') && !newUrl.endsWith('/')) {
-               // Apenas um aviso, não impede
-            }
-
-            btnSaveApiUrl.textContent = "Salvando...";
-            btnSaveApiUrl.disabled = true;
-
-            try {
-                // Salva no Firestore
-                await setDoc(configDocRef, { 
-                    url: newUrl,
-                    updatedAt: new Date()
-                });
-                
-                alert("Link atualizado no Banco de Dados! Todos os usuários receberão o novo link instantaneamente.");
-                newApiUrlInput.value = ""; // Limpa o input
-                
-            } catch (error) {
-                console.error(error);
-                alert("Erro ao salvar no Firebase: " + error.message);
-            } finally {
-                btnSaveApiUrl.textContent = "Atualizar Link da API";
-                btnSaveApiUrl.disabled = false;
-            }
-        });
-    }
-
-    // --- CÓDIGO ORIGINAL (Mapa e Impressoras) ---
-    const LOCALSTORAGE_KEY = 'interactiveMapPrinters';
-    const FORCE_HARDCODED = true;
-
-    let printerData = [];
-    let transientLabel = null;
-    let focusResetTimer = null;
-    let currentFloor = 1;
-    let currentPrinterIp = '';
-
-
-    
-    const initialPrinters2floor = [
-    {name:'CAF114134', department:'CAF', selb:'32F1', ip:'172.19.114.134', observations:'', floor:2, pos:{top:'53.23084314196493%', left:'16.88179347826087%'}},
-    {name:'LOG114226', department:'LOGISTICA', selb:'CABTEC LOG114226', ip:'172.19.114.226', observations:'', floor:2, pos:{top:'60.53372367976579%', left:'19.955948305601996%'}},
-    {name:'CPI038101', department:'MONTAGEM DE KITS', selb:'SNE6', ip:'172.19.114.93', observations:'', floor:2, pos:{top:'63.73656620250472%', left:'4.387477996267106%'}},
-    {name:'CPI114210', department:'MONTAGEM DE KITS', selb:'5H62', ip:'172.19.114.210', observations:'', floor:2, pos:{top:'61.7347896257929%', left:'4.330865376960434%'}}
+    // -------------- DADOS DE SEED (originais) --------------
+    const SEED_PRINTERS = [
+      {name:'teste t.i', department:'Customer Service', ip:'172.19.114.114', selb:'1LG9', pos:{top:'11.626231083353352%', left:'68.44429347826086%'}, floor:1, observations:''},
+      {name:'NCS14224', department:'Customer Service', ip:'172.19.114.224', selb:'OJL4', pos:{top:'16.814797021378812%', left:'68.51222826086956%'}, floor:1, observations:''},
+      {name:'MIC11475', department:'Microbiologia', ip:'172.19.114.75', selb:'GC420t - Minietiqueta (5x3) - MIC11475', pos:{top:'14.893105933221234%', left:'25.78125%'}, floor:1, observations:''},
+      {name:'MIC19194', department:'Microbiologia', ip:'172.19.114.192', selb:'5H04', pos:{top:'13.371867532435036%', left:'25.787048094189245%'}, floor:1, observations:''},
+      {name:'CRP04095', department:'Coprologia', ip:'172.19.114.92', selb:'GC420t - Minietiqueta CRP04095', pos:{top:'5.284650492433341%', left:'19.39538043478261%'}, floor:1, observations:'DRIVER GC420T (7x3) - CRP04095'},
+      {name:'MIC22094', department:'Micobacterias', ip:'172.19.114.220', selb:'DCC8', pos:{top:'16.04612058611578%', left:'43.51222826086957%'}, floor:1, observations:''},
+      {name:'MIC02117', department:'Micobacterias', ip:'172.19.114.117', selb:'GC420t - Minietiqueta - MIC02117', pos:{top:'17.775642565457602%', left:'41.88179347826087%'}, floor:1, observations:'DRIVER GC420T (5x3)'},
+      {name:'MIC02494', department:'Micobacterias', ip:'172.19.114.24', selb:'4Q88', pos:{top:'7.526679928436487%', left:'45.71469009013791%'}, floor:1, observations:''},
+      {name:'CDA10394', department:'CAC', ip:'172.19.141.103', selb:'SPR2', pos:{top:'77.15589718952678%', left:'83.86548913043478%'}, floor:1, observations:''},
+      {name:'CDA13094', department:'CDA', ip:'172.19.141.130', selb:'8KQ6', pos:{top:'83.78573144367043%', left:'81.35190217391305%'}, floor:1, observations:''},
+      {name:'CDA15194', department:'CDA', ip:'172.19.141.151', selb:'ZYG3', pos:{top:'76.96372808071102%', left:'80.53668478260869%'}, floor:1, observations:''},
+      {name:'CDA12194', department:'CDA', ip:'172.19.141.121', selb:'8KP6', pos:{top:'86.6682680759068%', left:'77.34375%'}, floor:1, observations:''},
+      {name:'CDA10094', department:'CDA', ip:'172.19.141.100', selb:'PGL6', pos:{top:'82.1522940187365%', left:'70.95788043478261%'}, floor:1, observations:''},
+      {name:'CDA14494', department:'CDA', ip:'172.19.141.144', selb:'3V12', pos:{top:'74.65769877492193%', left:'80.40081521739131%'}, floor:1, observations:''},
+      {name:'LVR19394', department:'Linha Verde', ip:'172.19.114.193', selb:'6PL1', pos:{top:'83.20922411722316%', left:'90.72690217391305%'}, floor:1, observations:''},
+      {name:'TOX11425', department:'Toxicologia', ip:'172.19.114.25', selb:'0AFP', pos:{top:'54.479942349267354%', left:'51.32472826086957%'}, floor:1, observations:''},
+      {name:'TOX11429', department:'Toxicologia', ip:'172.19.114.29', selb:'NDK3', pos:{top:'53.13475858755705%', left:'49.62635869565217%'}, floor:1, observations:''},
+      {name:'HEM14094', department:'Hematologia', ip:'172.19.114.140', selb:'0K65', pos:{top:'48.13836175834735%', left:'56.01222826086957%'}, floor:1, observations:''},
+      {name:'AML22194', department:'Linha Amarela', ip:'172.19.114.221', selb:'7OL4', pos:{top:'67.93177996637041%', left:'69.7350543478261%'}, floor:1, observations:''},
+      {name:'CITO00898', department:'Citometria', ip:'172.19.114.98', selb:'7ZK8', pos:{top:'41.02810473216431%', left:'73.33559782608695%'}, floor:1, observations:''},
+      {name:'AIM00817', department:'Linha Vermelha', ip:'172.19.114.172', selb:'3L29', pos:{top:'46.985347105452796%', left:'82.30298913043478%'}, floor:1, observations:''},
+      {name:'MIC07894', department:'Microbiologia', ip:'172.19.114.78', selb:'16VX', pos:{top:'14.989190487629115%', left:'27.47961956521739%'}, floor:1, observations:''},
+      {name:'MIC24094', department:'Microbiologia', ip:'172.19.114.240', selb:'5G78', pos:{top:'12.49099207302426%', left:'27.4116847826087%'}, floor:1, observations:''},
+      {name:'MIC19245', department:'Microbiologia', ip:'172.19.114.245', selb:'YEJ4', pos:{top:'9.320201777564256%', left:'27.34375%'}, floor:1, observations:''},
+      {name:'MIC02094', department:'Microbiologia', ip:'172.19.114.20', selb:'ZT230 - PrintServer (MIC02094)', pos:{top:'14.989190487629115%', left:'28.634510869565215%'}, floor:1, observations:''},
+      {name:'MIC23994', department:'Microbiologia', ip:'172.19.114.239', selb:'4R83', pos:{top:'13.067499399471535%', left:'28.566576086956523%'}, floor:1, observations:''},
+      {name:'MIC02194', department:'Microbiologia', ip:'172.19.114.21', selb:'ZT230 - PrintServer (MIC02194)', pos:{top:'11.241892865721836%', left:'28.634510869565215%'}, floor:1, observations:''},
+      {name:'MIC02118', department:'Microbiologia', ip:'172.19.114.118', selb:'ZT230 - PrintServer (MIC02118)', pos:{top:'9.320201777564256%', left:'28.634510869565215%'}, floor:1, observations:''},
+      {name:'MIC23894', department:'Microbiologia', ip:'172.19.114.238', selb:'5G71', pos:{top:'9.320201777564256%', left:'30.197010869565215%'}, floor:1, observations:''},
+      {name:'VET16694', department:'Veterinaria', selb:'OJN3', ip:'172.19.114.166', pos:{top:'66.2187691576274%', left:'90.89156029686242%'}, floor:1, observations:''},
+      {name:'CDA11494', department:'CDA', selb:'8KN4', ip:'172.19.141.114', pos:{top:'74.54615971674862%', left:'79.11613548107458%'}, floor:1, observations:''},
+      {name:'gc t.i', department:'NAO SEI', selb:'NQL7', ip:'172.19.114.170', pos:{top:'84.87532685258167%', left:'49.39451034507161%'}, floor:1, observations:''},
+      {name:'GMO09594', department:'NAO SEI', selb:'5DM9', ip:'172.19.114.95', pos:{top:'84.87532685258167%', left:'48.20564533963149%'}, floor:1, observations:''},
+      {name:'zt ti', department:'NAO SEI', selb:'YEC2', ip:'172.19.107.105', pos:{top:'86.47674811395113%', left:'47.52629390795142%'}, floor:1, observations:''},
+      {name:'CDA14149', department:'NAO SEI', selb:'YEE8', ip:'172.19.114.149', pos:{top:'87.99809831225213%', left:'50.13047439605835%'}, floor:1, observations:''},
+      {name:'CDA10592', department:'CDA', selb:'8LO1', ip:'172.19.114.105', pos:{top:'82.31305283439052%', left:'48.82838415200489%'}, floor:1, observations:''},
+      {name:'CDA10894', department:'CDA', selb:'3V63', ip:'172.19.141.108', pos:{top:'82.39312389745899%', left:'50.470150111898384%'}, floor:1, observations:''},
+      {name:'CDA12994', department:'CDA', selb:'5N14', ip:'172.19.141.129', pos:{top:'82.47319496052747%', left:'52.111916071791875%'}, floor:1, observations:''},
+      {name:'CDA10092', department:'CDA', selb:'7ZQ4', ip:'172.19.141.153', pos:{top:'82.39312389745899%', left:'53.866907270298725%'}, floor:1, observations:''},
+      {name:'CDA16162', department:'CDA', selb:'7OC4', ip:'172.19.141.162', pos:{top:'82.39312389745899%', left:'55.508673230192215%'}, floor:1, observations:''},
+      {name:'CDA12594', department:'CDA', selb:'NDI2', ip:'172.19.141.125', pos:{top:'80.31127625767868%', left:'55.508673230192215%'}, floor:1, observations:''},
+      {name:'CDA15094', department:'CDA', selb:'5G98', ip:'172.19.141.150', pos:{top:'80.31127625767868%', left:'53.866907270298725%'}, floor:1, observations:''},
+      {name:'CDA16194', department:'CDA', selb:'8LK8', ip:'172.19.114.194', pos:{top:'80.39134732074716%', left:'50.526762731205054%'}, floor:1, observations:''},
+      {name:'CDA13694', department:'CDA', selb:'YEJ3', ip:'172.19.141.136', pos:{top:'80.39134732074716%', left:'48.82838415200489%'}, floor:1, observations:''},
+      {name:'CDA15294', department:'CDA', selb:'YEO4', ip:'172.19.141.152', pos:{top:'77.2685758610767%', left:'55.225610133658854%'}, floor:1, observations:''},
+      {name:'CDA15794', department:'CDA', selb:'XLP6', ip:'172.19.114.157', pos:{top:'77.18850479800822%', left:'56.86737609355236%'}, floor:1, observations:''},
+      {name:'CDA13894', department:'CDA', selb:'YEJ7', ip:'172.19.141.138', pos:{top:'77.2685758610767%', left:'58.50914205344585%'}, floor:1, observations:''},
+      {name:'CDA13994', department:'CDA', selb:'YEM4', ip:'172.19.141.139', pos:{top:'77.2685758610767%', left:'60.207520632646016%'}, floor:1, observations:''},
+      {name:'CDA10594', department:'CDA', selb:'YEK4', ip:'172.19.141.105', pos:{top:'75.34687034743335%', left:'60.207520632646016%'}, floor:1, observations:''},
+      {name:'CDA11124', department:'CDA', selb:'YEQ3', ip:'172.19.141.124', pos:{top:'75.42694141050183%', left:'58.50914205344585%'}, floor:1, observations:''},
+      {name:'TOX14224', department:'Toxicologia', selb:'3V61', ip:'172.19.114.227', pos:{top:'67.16310353110737%', left:'38.213315217391305%'}, floor:1, observations:''},
+      {name:'TOX072', department:'Toxicologia Metais', selb:'3BS2', ip:'172.19.114.72', pos:{top:'69.46913283689646%', left:'35.224184782608695%'}, floor:1, observations:''},
+      {name:'TOX11191', department:'Toxicologia', selb:'ZT230 - PrintServer (TOX11191)', ip:'172.19.114.191', pos:{top:'56.129815210999766%', left:'33.542976939203356%'}, floor:1, observations:''},
+      {name:'TOX11214', department:'Toxicologia ZT230', selb:'DCR1', ip:'172.19.114.214', pos:{top:'60.14893105933221%', left:'40.31929347826087%'}, floor:1, observations:''},
+      {name:'TOX11410', department:'Toxicologia', selb:'NCV8', ip:'172.19.114.10', pos:{top:'60.14893105933221%', left:'38.82472826086957%'}, floor:1, observations:''},
+      {name:'TOX11412', department:'Toxicologia', selb:'8KL8', ip:'172.19.114.12', pos:{top:'57.971449661574646%', left:'44.242761988164425%'}, floor:1, observations:''},
+      {name:'TOX114184', department:'Toxicologia', selb:'7ZH6', ip:'172.19.114.188', pos:{top:'60.45365261669732%', left:'44.242761988164425%'}, floor:1, observations:''},
+      {name:'IMU14094', department:'Linha Amarela', selb:'6PO3', ip:'172.19.114.145', pos:{top:'49.644059102453426%', left:'70.73746782368707%'}, floor:1, observations:''},
+      {name:'LAM11491', department:'NAO SEI', selb:'8KQ3', ip:'172.19.114.91', pos:{top:'54.76860713883571%', left:'75.66276570336757%'}, floor:1, observations:''},
+      {name:'LVR114225', department:'LINHA VERMELHA', selb:'OJO4', ip:'172.19.114.225', pos:{top:'39.87509007926976%', left:'71.36548913043478%'}, floor:1, observations:''},
+      {name:'LVER20694', department:'Linha Vermelha', selb:'NQQ1', ip:'172.19.114.206', pos:{top:'26.03891424453519%', left:'68.98777173913044%'}, floor:1, observations:''},
+      {name:'GPR95198', department:'Centro de Comando', selb:'3L17', ip:'172.19.114.198', pos:{top:'38.52990631755945%', left:'79.38179347826086%'}, floor:1, observations:''},
+      {name:'GQA90119', department:'Setor de Qualidade', selb:'YWB3', ip:'172.19.114.119', pos:{top:'64.21699258091557%', left:'83.13563145184831%'}, floor:1, observations:''},
+      {name:'CPM00115', department:'CPM', selb:'3FO3', ip:'172.19.114.115', pos:{top:'47.40206933653617%', left:'30.259445019416358%'}, floor:1, observations:''},
+      {name:'CPM16899', department:'CPM', selb:'5G66', ip:'172.19.114.168', pos:{top:'47.24192721039923%', left:'17.464993056108412%'}, floor:1, observations:''},
+      {name:'DNA14994', department:'Genetica Molecular', selb:'8KO5', ip:'172.19.114.181', pos:{top:'41.15652641719526%', left:'60.773646825712746%'}, floor:1, observations:''},
+      {name:'COP13694', department:'Genetica Molecular', selb:'YYR5', ip:'172.19.114.136', pos:{top:'41.23659748026373%', left:'59.13188086581924%'}, floor:1, observations:''},
+      {name:'BRT09295', department:'Genetica Molecular', selb:'8KO6', ip:'172.19.114.101', pos:{top:'33.06934904727946%', left:'58.84881776928589%'}, floor:1, observations:''},
+      {name:'GMO10894', department:'Genetica Molecular', selb:'PNL5', ip:'172.19.114.108', pos:{top:'41.23659748026373%', left:'55.16899751435218%'}, floor:1, observations:''},
+      {name:'GMO10794', department:'Genetica Molecular', selb:'YYM1', ip:'172.19.114.107', pos:{top:'41.316668543332206%', left:'53.300781077231996%'}, floor:1, observations:'DRIVER ZD230 (10x3)'},
+      {name:'GMO114175', department:'Genetica Molecular', selb:'GC420t - Minietiqueta GMO114175', ip:'172.19.114.175', pos:{top:'38.3540392097987%', left:'48.26225795893816%'}, floor:1, observations:'DRIVER SEM SER EPL (10,8x3)'},
+      {name:'GMO20994', department:'Genetica Molecular', selb:'NQK7', ip:'172.19.114.209', pos:{top:'33.78998861489572%', left:'30.429282877336377%'}, floor:1, observations:''},
+      {name:'LVR18794', department:'Linha Verde', selb:'3FI5', ip:'172.19.114.187', pos:{top:'69.3730482824886%', left:'54.85733695652174%'}, floor:1, observations:''},
+      {name:'LOG09099', department:'PARDIS', selb:'OQD9', ip:'172.19.114.99', observations:'', floor:1, pos:{top:'94.06677876531347%', left:'43.91983695652174%'}},
+      {name:'LOG114127', department:'PARDIS', selb:'32F2', ip:'172.19.114.127', observations:'', floor:1, pos:{top:'93.97069421090559%', left:'46.36548913043478%'}},
+      {name:'LOG09032', department:'CPI', selb:'NBZ7', ip:'172.19.114.32', observations:'', floor:1, pos:{top:'61.65471856272442%', left:'8.746649682880875%'}},
+      {name:'LOG00228', department:'CPI', selb:'NDV4', ip:'172.19.114.228', observations:'', floor:1, pos:{top:'61.7347896257929%', left:'6.765208007147343%'}},
+      {name:'CPI114195', department:'CPI', selb:'3T70', ip:'172.19.114.195', observations:'', floor:1, pos:{top:'61.65471856272442%', left:'4.613928473493795%'}},
+      {name:'LOG11447', department:'ALMOXARIFADO', selb:'CABTEC LOG11447', ip:'172.19.114.47', observations:'', floor:1, pos:{top:'88.63866681679991%', left:'12.822758272961282%'}},
+      {name:'LOG0942', department:'ALMOXARIFADO', selb:'7YP5', ip:'172.19.114.242', observations:'', floor:1, pos:{top:'77.66893117641908%', left:'13.27565922741466%'}},
+      {name:'LOG114179', department:'ALMOXARIFADO', selb:'5H66', ip:'172.19.114.179', observations:'', floor:1, pos:{top:'66.05862703149045%', left:'11.916956364054524%'}},
+      {name:'LOG252106', department:'ALMOXARIFADO', selb:'5DM8', ip:'172.19.252.106', observations:'', floor:1, pos:{top:'69.34154061729785%', left:'11.916956364054524%'}},
+      {name:'LOG114130', department:'ALMOXARIFADO', selb:'CABTEC LOG114130', ip:'172.19.114.130', observations:'', floor:1, pos:{top:'60.05329730135496%', left:'27.14575095754938%'}},
+      {name:'LOG09594', department:'ALMOARIFADO', selb:'ZT230 - PrintServer (LOG09594)', ip:'172.19.114.126', observations:'', floor:1, pos:{top:'58.13159178771159%', left:'27.202363576856055%'}},
+      {name:'LOG114165', department:'ALMOXARIFADO', selb:'CABTEC LOG114165', ip:'172.19.114.165', observations:'', floor:1, pos:{top:'77.74900223948754%', left:'29.80654406496298%'}},
+      {name:'LOG11440', department:'ALMOXARIFADO', selb:'CABTEC LOG11440', ip:'172.19.114.040', observations:'', floor:1, pos:{top:'74.94651503209097%', left:'30.429282877336377%'}},
+      {name:'LOG09091', department:'ALMOXARIFADO', selb:'7RN5', ip:'172.19.114.94', observations:'', floor:1, pos:{top:'95.84506249296251%', left:'24.42834523082911%'}},
+      {name:'MIC02394', department:'GENETICA MOLECULAR', selb:'ZT230 - PrintServer (MIC02394)', ip:'172.19.114.23', observations:'', floor:1, pos:{top:'10.729522451175418%', left:'25.730435474882572%'}},
+      {name:'LOG114164', department:'LOGISTICA', selb:'YEL3', ip:'172.19.114.164', observations:'', floor:1, pos:{top:'85.91625067247182%', left:'87.0419021840087%'}},
+      {name:'TOX114139', department:'Colorimetria', selb:'32F0', ip:'172.19.114.139', observations:'', floor:1, pos:{top:'66.7792665991067%', left:'44.86550080053782%'}},
+      {name:'CAF114134', department:'CAF', selb:'32F1', ip:'172.19.114.134', observations:'', floor:2, pos:{top:'53.23084314196493%', left:'16.88179347826087%'}},
+      {name:'LOG114226', department:'LOGISTICA', selb:'CABTEC LOG114226', ip:'172.19.114.226', observations:'', floor:2, pos:{top:'60.53372367976579%', left:'19.955948305601996%'}},
+      {name:'CPI038101', department:'MONTAGEM DE KITS', selb:'SNE6', ip:'172.19.114.93', observations:'', floor:2, pos:{top:'63.73656620250472%', left:'4.387477996267106%'}},
+      {name:'CPI114210', department:'MONTAGEM DE KITS', selb:'5H62', ip:'172.19.114.210', observations:'', floor:2, pos:{top:'61.7347896257929%', left:'4.330865376960434%'}}
     ];
 
-    const initialPrinters = [
-    {name:'teste t.i', department:'Customer Service', ip:'172.19.114.114', selb:'1LG9', pos:{top:'11.626231083353352%', left:'68.44429347826086%'}, floor:1, observations:''},
-    {name:'NCS14224', department:'Customer Service', ip:'172.19.114.224', selb:'OJL4', pos:{top:'16.814797021378812%', left:'68.51222826086956%'}, floor:1, observations:''},
-    {name:'MIC11475', department:'Microbiologia', ip:'172.19.114.75', selb:'GC420t - Minietiqueta (5x3) - MIC11475', pos:{top:'14.893105933221234%', left:'25.78125%'}, floor:1, observations:''},
-    {name:'MIC19194', department:'Microbiologia', ip:'172.19.114.192', selb:'5H04', pos:{top:'13.371867532435036%', left:'25.787048094189245%'}, floor:1, observations:''},
-    {name:'CRP04095', department:'Coprologia', ip:'172.19.114.92', selb:'GC420t - Minietiqueta CRP04095', pos:{top:'5.284650492433341%', left:'19.39538043478261%'}, floor:1, observations:'DRIVER GC420T (7x3) - CRP04095'},
-    {name:'MIC22094', department:'Micobacterias', ip:'172.19.114.220', selb:'DCC8', pos:{top:'16.04612058611578%', left:'43.51222826086957%'}, floor:1, observations:''},
-    {name:'MIC02117', department:'Micobacterias', ip:'172.19.114.117', selb:'GC420t - Minietiqueta - MIC02117', pos:{top:'17.775642565457602%', left:'41.88179347826087%'}, floor:1, observations:'DRIVER GC420T (5x3)'},
-    {name:'MIC02494', department:'Micobacterias', ip:'172.19.114.24', selb:'4Q88', pos:{top:'7.526679928436487%', left:'45.71469009013791%'}, floor:1, observations:''},
-    {name:'CDA10394', department:'CAC', ip:'172.19.141.103', selb:'SPR2', pos:{top:'77.15589718952678%', left:'83.86548913043478%'}, floor:1, observations:''},
-    {name:'CDA13094', department:'CDA', ip:'172.19.141.130', selb:'8KQ6', pos:{top:'83.78573144367043%', left:'81.35190217391305%'}, floor:1, observations:''},
-    {name:'CDA15194', department:'CDA', ip:'172.19.141.151', selb:'ZYG3', pos:{top:'76.96372808071102%', left:'80.53668478260869%'}, floor:1, observations:''},
-    {name:'CDA12194', department:'CDA', ip:'172.19.141.121', selb:'8KP6', pos:{top:'86.6682680759068%', left:'77.34375%'}, floor:1, observations:''},
-    {name:'CDA10094', department:'CDA', ip:'172.19.141.100', selb:'PGL6', pos:{top:'82.1522940187365%', left:'70.95788043478261%'}, floor:1, observations:''},
-    {name:'CDA14494', department:'CDA', ip:'172.19.141.144', selb:'3V12', pos:{top:'74.65769877492193%', left:'80.40081521739131%'}, floor:1, observations:''},
-    {name:'LVR19394', department:'Linha Verde', ip:'172.19.114.193', selb:'6PL1', pos:{top:'83.20922411722316%', left:'90.72690217391305%'}, floor:1, observations:''},
-    {name:'TOX11425', department:'Toxicologia', ip:'172.19.114.25', selb:'0AFP', pos:{top:'54.479942349267354%', left:'51.32472826086957%'}, floor:1, observations:''},
-    {name:'TOX11429', department:'Toxicologia', ip:'172.19.114.29', selb:'NDK3', pos:{top:'53.13475858755705%', left:'49.62635869565217%'}, floor:1, observations:''},
-    {name:'HEM14094', department:'Hematologia', ip:'172.19.114.140', selb:'0K65', pos:{top:'48.13836175834735%', left:'56.01222826086957%'}, floor:1, observations:''},
-    {name:'AML22194', department:'Linha Amarela', ip:'172.19.114.221', selb:'7OL4', pos:{top:'67.93177996637041%', left:'69.7350543478261%'}, floor:1, observations:''},
-    {name:'CITO00898', department:'Citometria', ip:'172.19.114.98', selb:'7ZK8', pos:{top:'41.02810473216431%', left:'73.33559782608695%'}, floor:1, observations:''},
-    {name:'AIM00817', department:'Linha Vermelha', ip:'172.19.114.172', selb:'3L29', pos:{top:'46.985347105452796%', left:'82.30298913043478%'}, floor:1, observations:''},
-    {name:'MIC07894', department:'Microbiologia', ip:'172.19.114.78', selb:'16VX', pos:{top:'14.989190487629115%', left:'27.47961956521739%'}, floor:1, observations:''},
-    {name:'MIC24094', department:'Microbiologia', ip:'172.19.114.240', selb:'5G78', pos:{top:'12.49099207302426%', left:'27.4116847826087%'}, floor:1, observations:''},
-    {name:'MIC19245', department:'Microbiologia', ip:'172.19.114.245', selb:'YEJ4', pos:{top:'9.320201777564256%', left:'27.34375%'}, floor:1, observations:''},
-    {name:'MIC02094', department:'Microbiologia', ip:'172.19.114.20', selb:'ZT230 - PrintServer (MIC02094)', pos:{top:'14.989190487629115%', left:'28.634510869565215%'}, floor:1, observations:''},
-    {name:'MIC23994', department:'Microbiologia', ip:'172.19.114.239', selb:'4R83', pos:{top:'13.067499399471535%', left:'28.566576086956523%'}, floor:1, observations:''},
-    {name:'MIC02194', department:'Microbiologia', ip:'172.19.114.21', selb:'ZT230 - PrintServer (MIC02194)', pos:{top:'11.241892865721836%', left:'28.634510869565215%'}, floor:1, observations:''},
-    {name:'MIC02118', department:'Microbiologia', ip:'172.19.114.118', selb:'ZT230 - PrintServer (MIC02118)', pos:{top:'9.320201777564256%', left:'28.634510869565215%'}, floor:1, observations:''},
-    {name:'MIC23894', department:'Microbiologia', ip:'172.19.114.238', selb:'5G71', pos:{top:'9.320201777564256%', left:'30.197010869565215%'}, floor:1, observations:''},
-    {name:'VET16694', department:'Veterinaria', selb:'OJN3', ip:'172.19.114.166', pos:{top:'66.2187691576274%', left:'90.89156029686242%'}, floor:1, observations:''},
-    {name:'CDA11494', department:'CDA', selb:'8KN4', ip:'172.19.141.114', pos:{top:'74.54615971674862%', left:'79.11613548107458%'}, floor:1, observations:''},
-    {name:'gc t.i', department:'NAO SEI', selb:'NQL7', ip:'172.19.114.170', pos:{top:'84.87532685258167%', left:'49.39451034507161%'}, floor:1, observations:''},
-    {name:'GMO09594', department:'NAO SEI', selb:'5DM9', ip:'172.19.114.95', pos:{top:'84.87532685258167%', left:'48.20564533963149%'}, floor:1, observations:''},
-    {name:'zt ti', department:'NAO SEI', selb:'YEC2', ip:'172.19.107.105', pos:{top:'86.47674811395113%', left:'47.52629390795142%'}, floor:1, observations:''},
-    {name:'CDA14149', department:'NAO SEI', selb:'YEE8', ip:'172.19.114.149', pos:{top:'87.99809831225213%', left:'50.13047439605835%'}, floor:1, observations:''},
-    {name:'CDA10592', department:'CDA', selb:'8LO1', ip:'172.19.114.105', pos:{top:'82.31305283439052%', left:'48.82838415200489%'}, floor:1, observations:''},
-    {name:'CDA10894', department:'CDA', selb:'3V63', ip:'172.19.141.108', pos:{top:'82.39312389745899%', left:'50.470150111898384%'}, floor:1, observations:''},
-    {name:'CDA12994', department:'CDA', selb:'5N14', ip:'172.19.141.129', pos:{top:'82.47319496052747%', left:'52.111916071791875%'}, floor:1, observations:''},
-    {name:'CDA10092', department:'CDA', selb:'7ZQ4', ip:'172.19.141.153', pos:{top:'82.39312389745899%', left:'53.866907270298725%'}, floor:1, observations:''},
-    {name:'CDA16162', department:'CDA', selb:'7OC4', ip:'172.19.141.162', pos:{top:'82.39312389745899%', left:'55.508673230192215%'}, floor:1, observations:''},
-    {name:'CDA12594', department:'CDA', selb:'NDI2', ip:'172.19.141.125', pos:{top:'80.31127625767868%', left:'55.508673230192215%'}, floor:1, observations:''},
-    {name:'CDA15094', department:'CDA', selb:'5G98', ip:'172.19.141.150', pos:{top:'80.31127625767868%', left:'53.866907270298725%'}, floor:1, observations:''},
-    {name:'CDA16194', department:'CDA', selb:'8LK8', ip:'172.19.114.194', pos:{top:'80.39134732074716%', left:'50.526762731205054%'}, floor:1, observations:''},
-    {name:'CDA13694', department:'CDA', selb:'YEJ3', ip:'172.19.141.136', pos:{top:'80.39134732074716%', left:'48.82838415200489%'}, floor:1, observations:''},
-    {name:'CDA15294', department:'CDA', selb:'YEO4', ip:'172.19.141.152', pos:{top:'77.2685758610767%', left:'55.225610133658854%'}, floor:1, observations:''},
-    {name:'CDA15794', department:'CDA', selb:'XLP6', ip:'172.19.114.157', pos:{top:'77.18850479800822%', left:'56.86737609355236%'}, floor:1, observations:''},
-    {name:'CDA13894', department:'CDA', selb:'YEJ7', ip:'172.19.141.138', pos:{top:'77.2685758610767%', left:'58.50914205344585%'}, floor:1, observations:''},
-    {name:'CDA13994', department:'CDA', selb:'YEM4', ip:'172.19.141.139', pos:{top:'77.2685758610767%', left:'60.207520632646016%'}, floor:1, observations:''},
-    {name:'CDA10594', department:'CDA', selb:'YEK4', ip:'172.19.141.105', pos:{top:'75.34687034743335%', left:'60.207520632646016%'}, floor:1, observations:''},
-    {name:'CDA11124', department:'CDA', selb:'YEQ3', ip:'172.19.141.124', pos:{top:'75.42694141050183%', left:'58.50914205344585%'}, floor:1, observations:''},
-    {name:'TOX14224', department:'Toxicologia', selb:'3V61', ip:'172.19.114.227', pos:{top:'67.16310353110737%', left:'38.213315217391305%'}, floor:1, observations:''},
-    {name:'TOX072', department:'Toxicologia Metais', selb:'3BS2', ip:'172.19.114.72', pos:{top:'69.46913283689646%', left:'35.224184782608695%'}, floor:1, observations:''},
-    {name:'TOX11191', department:'Toxicologia', selb:'ZT230 - PrintServer (TOX11191)', ip:'172.19.114.191', pos:{top:'56.129815210999766%', left:'33.542976939203356%'}, floor:1, observations:''},
-    {name:'TOX11214', department:'Toxicologia ZT230', selb:'DCR1', ip:'172.19.114.214', pos:{top:'60.14893105933221%', left:'40.31929347826087%'}, floor:1, observations:''},
-    {name:'TOX11410', department:'Toxicologia', selb:'NCV8', ip:'172.19.114.10', pos:{top:'60.14893105933221%', left:'38.82472826086957%'}, floor:1, observations:''},
-    {name:'TOX11412', department:'Toxicologia', selb:'8KL8', ip:'172.19.114.12', pos:{top:'57.971449661574646%', left:'44.242761988164425%'}, floor:1, observations:''},
-    {name:'TOX114184', department:'Toxicologia', selb:'7ZH6', ip:'172.19.114.188', pos:{top:'60.45365261669732%', left:'44.242761988164425%'}, floor:1, observations:''},
-    {name:'IMU14094', department:'Linha Amarela', selb:'6PO3', ip:'172.19.114.145', pos:{top:'49.644059102453426%', left:'70.73746782368707%'}, floor:1, observations:''},
-    {name:'LAM11491', department:'NAO SEI', selb:'8KQ3', ip:'172.19.114.91', pos:{top:'54.76860713883571%', left:'75.66276570336757%'}, floor:1, observations:''},
-    {name:'LVR114225', department:'LINHA VERMELHA', selb:'OJO4', ip:'172.19.114.225', pos:{top:'39.87509007926976%', left:'71.36548913043478%'}, floor:1, observations:''},
-    {name:'LVER20694', department:'Linha Vermelha', selb:'NQQ1', ip:'172.19.114.206', pos:{top:'26.03891424453519%', left:'68.98777173913044%'}, floor:1, observations:''},
-    {name:'GPR95198', department:'Centro de Comando', selb:'3L17', ip:'172.19.114.198', pos:{top:'38.52990631755945%', left:'79.38179347826086%'}, floor:1, observations:''},
-    {name:'GQA90119', department:'Setor de Qualidade', selb:'YWB3', ip:'172.19.114.119', pos:{top:'64.21699258091557%', left:'83.13563145184831%'}, floor:1, observations:''},
-    {name:'CPM00115', department:'CPM', selb:'3FO3', ip:'172.19.114.115', pos:{top:'47.40206933653617%', left:'30.259445019416358%'}, floor:1, observations:''},
-    {name:'CPM16899', department:'CPM', selb:'5G66', ip:'172.19.114.168', pos:{top:'47.24192721039923%', left:'17.464993056108412%'}, floor:1, observations:''},
-    {name:'DNA14994', department:'Genetica Molecular', selb:'8KO5', ip:'172.19.114.181', pos:{top:'41.15652641719526%', left:'60.773646825712746%'}, floor:1, observations:''},
-    {name:'COP13694', department:'Genetica Molecular', selb:'YYR5', ip:'172.19.114.136', pos:{top:'41.23659748026373%', left:'59.13188086581924%'}, floor:1, observations:''},
-    {name:'BRT09295', department:'Genetica Molecular', selb:'8KO6', ip:'172.19.114.101', pos:{top:'33.06934904727946%', left:'58.84881776928589%'}, floor:1, observations:''},
-    {name:'GMO10894', department:'Genetica Molecular', selb:'PNL5', ip:'172.19.114.108', pos:{top:'41.23659748026373%', left:'55.16899751435218%'}, floor:1, observations:''},
-    {name:'GMO10794', department:'Genetica Molecular', selb:'YYM1', ip:'172.19.114.107', pos:{top:'41.316668543332206%', left:'53.300781077231996%'}, floor:1, observations:'DRIVER ZD230 (10x3)'},
-    {name:'GMO114175', department:'Genetica Molecular', selb:'GC420t - Minietiqueta GMO114175', ip:'172.19.114.175', pos:{top:'38.3540392097987%', left:'48.26225795893816%'}, floor:1, observations:'DRIVER SEM SER EPL (10,8x3)'},
-    {name:'GMO20994', department:'Genetica Molecular', selb:'NQK7', ip:'172.19.114.209', pos:{top:'33.78998861489572%', left:'30.429282877336377%'}, floor:1, observations:''},
-    {name:'LVR18794', department:'Linha Verde', selb:'3FI5', ip:'172.19.114.187', pos:{top:'69.3730482824886%', left:'54.85733695652174%'}, floor:1, observations:''},
-    {name:'LOG09099', department:'PARDIS', selb:'OQD9', ip:'172.19.114.99', observations:'', floor:1, pos:{top:'94.06677876531347%', left:'43.91983695652174%'}},
-    {name:'LOG114127', department:'PARDIS', selb:'32F2', ip:'172.19.114.127', observations:'', floor:1, pos:{top:'93.97069421090559%', left:'46.36548913043478%'}},
-    {name:'LOG09032', department:'CPI', selb:'NBZ7', ip:'172.19.114.32', observations:'', floor:1, pos:{top:'61.65471856272442%', left:'8.746649682880875%'}},
-    {name:'LOG00228', department:'CPI', selb:'NDV4', ip:'172.19.114.228', observations:'', floor:1, pos:{top:'61.7347896257929%', left:'6.765208007147343%'}},
-    {name:'CPI114195', department:'CPI', selb:'3T70', ip:'172.19.114.195', observations:'', floor:1, pos:{top:'61.65471856272442%', left:'4.613928473493795%'}},
-    {name:'LOG11447', department:'ALMOXARIFADO', selb:'CABTEC LOG11447', ip:'172.19.114.47', observations:'', floor:1, pos:{top:'88.63866681679991%', left:'12.822758272961282%'}},
-    {name:'LOG0942', department:'ALMOXARIFADO', selb:'7YP5', ip:'172.19.114.242', observations:'', floor:1, pos:{top:'77.66893117641908%', left:'13.27565922741466%'}},
-    {name:'LOG114179', department:'ALMOXARIFADO', selb:'5H66', ip:'172.19.114.179', observations:'', floor:1, pos:{top:'66.05862703149045%', left:'11.916956364054524%'}},
-    {name:'LOG252106', department:'ALMOXARIFADO', selb:'5DM8', ip:'172.19.252.106', observations:'', floor:1, pos:{top:'69.34154061729785%', left:'11.916956364054524%'}},
-    {name:'LOG114130', department:'ALMOXARIFADO', selb:'CABTEC LOG114130', ip:'172.19.114.130', observations:'', floor:1, pos:{top:'60.05329730135496%', left:'27.14575095754938%'}},
-    {name:'LOG09594', department:'ALMOARIFADO', selb:'ZT230 - PrintServer (LOG09594)', ip:'172.19.114.126', observations:'', floor:1, pos:{top:'58.13159178771159%', left:'27.202363576856055%'}},
-    {name:'LOG114165', department:'ALMOXARIFADO', selb:'CABTEC LOG114165', ip:'172.19.114.165', observations:'', floor:1, pos:{top:'77.74900223948754%', left:'29.80654406496298%'}},
-    {name:'LOG11440', department:'ALMOXARIFADO', selb:'CABTEC LOG11440', ip:'172.19.114.040', observations:'', floor:1, pos:{top:'74.94651503209097%', left:'30.429282877336377%'}},
-    {name:'LOG09091', department:'ALMOXARIFADO', selb:'7RN5', ip:'172.19.114.94', observations:'', floor:1, pos:{top:'95.84506249296251%', left:'24.42834523082911%'}},
-    {name:'MIC02394', department:'GENETICA MOLECULAR', selb:'ZT230 - PrintServer (MIC02394)', ip:'172.19.114.23', observations:'', floor:1, pos:{top:'10.729522451175418%', left:'25.730435474882572%'}},
-    {name:'LOG114164', department:'LOGISTICA', selb:'YEL3', ip:'172.19.114.164', observations:'', floor:1, pos:{top:'85.91625067247182%', left:'87.0419021840087%'}},
-    {name:'TOX114139', department:'Colorimetria', selb:'32F0', ip:'172.19.114.139', observations:'', floor:1, pos:{top:'66.7792665991067%', left:'44.86550080053782%'}}
-    ];
-
-    // Comandos EPL
+    // -------------- COMANDOS --------------
     const TESTE_CABECA = `I8,A,001
 
 Q240,024
@@ -507,717 +826,1338 @@ B375,139,2,1,4,12,93,B,"1234567890"
 LO1,146,398,46
 P1
 `;
-
     const CALIBRAGEM = `~jc^xa^jus^xz`;
-
-    function showToast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'),3000); }
-
-    function savePrinters(){
-    if (FORCE_HARDCODED) {
-        try { localStorage.removeItem(LOCALSTORAGE_KEY); } catch(e){ }
-        return;
-    }
-    try { localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(printerData)); } catch(e){ console.warn('Erro ao gravar localStorage', e); }
-    }
-
-    function loadPrinters(){
-    if (FORCE_HARDCODED) {
-        printerData = (Array.isArray(initialPrinters) ? initialPrinters.slice() : []).concat(Array.isArray(initialPrinters2floor) ? initialPrinters2floor.slice() : []);
-        try { localStorage.removeItem(LOCALSTORAGE_KEY); } catch(e){ }
-        renderAllPrinters();
-        return;
+    // ZT421: carregado do arquivo ZT421.prn (servido junto com o app)
+    let ZT421_CMD_CACHE = null;
+    async function loadZT421Cmd() {
+      if (ZT421_CMD_CACHE !== null) return ZT421_CMD_CACHE;
+      const res = await fetch('./ZT421.prn?_=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('Falha ao carregar ZT421.prn (HTTP ' + res.status + ')');
+      const buf = new Uint8Array(await res.arrayBuffer());
+      // remove BOM UTF-8 se houver, preserva todo o resto (inclusive \x10)
+      let s = 0;
+      if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) s = 3;
+      let out = '';
+      for (let i = s; i < buf.length; i++) out += String.fromCharCode(buf[i]);
+      ZT421_CMD_CACHE = out;
+      return out;
     }
 
-    try {
-        const s = localStorage.getItem(LOCALSTORAGE_KEY);
-        if (s) {
-        printerData = JSON.parse(s);
+    // -------------- STATE --------------
+    let printerData = [];
+    const statusCache = new Map(); // selb -> 'ok' | 'err' | 'unknown'
+    let transientLabel = null;
+    let focusResetTimer = null;
+    let currentFloor = 1;
+    let currentPrinterIp = '';
+    let currentPrinterSelb = '';
+    let editingPrinterId = null;
+    let pickPosMode = false;
+    let reposPrinter = null; // quando setado, pickPos vai reposicionar essa impressora direto no Firestore
+
+    // -------------- DOM --------------
+    const $ = (id) => document.getElementById(id);
+
+    const mapContainer = $('map-container');
+    const mapInner = $('map-inner');
+    const tooltip = $('map-tooltip');
+    const mapImage = $('map-image');
+    const searchContainer = $('search-container');
+    const searchHitbox = $('search-hitbox');
+    const searchForm = $('search-form');
+    const searchInput = $('search-input');
+    const searchResultsPanel = $('search-results');
+    const detailsModal = $('details-modal');
+    const formModal = $('form-modal');
+    const floorSelect = $('floor-select');
+    const toastEl = $('toast-notification');
+    const panelLog = $('panel-log');
+    const panelCurrentIp = $('panel-current-ip');
+
+    // -------------- AUTH GATE --------------
+    const authGate = $('auth-gate');
+    const loginForm = $('login-form');
+    const loginEmail = $('login-email');
+    const loginPass = $('login-pass');
+    const authError = $('auth-error');
+    const loginBtn = $('login-btn');
+    const userEmailEl = $('user-email');
+    const btnLogout = $('btn-logout');
+
+    function showApp(user) {
+      authGate.style.display = 'none';
+      $('main-wrapper').style.display = '';
+      $('side-actions').style.display = '';
+      $('ip-tools-sidebar').style.display = '';
+      userEmailEl.textContent = user.email || '';
+      bootAppOnce();
+    }
+    function showLogin() {
+      authGate.style.display = 'flex';
+      $('main-wrapper').style.display = 'none';
+      $('side-actions').style.display = 'none';
+      $('ip-tools-sidebar').style.display = 'none';
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) showApp(user);
+      else showLogin();
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      authError.classList.add('hidden');
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Entrando...';
+      try {
+        await signInWithEmailAndPassword(auth, loginEmail.value.trim(), loginPass.value);
+      } catch (err) {
+        let msg = 'Falha ao entrar.';
+        if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') msg = 'E-mail ou senha inválidos.';
+        else if (err.code === 'auth/network-request-failed') msg = 'Sem conexão. Tente de novo.';
+        else if (err.code === 'auth/too-many-requests') msg = 'Muitas tentativas. Aguarde alguns minutos.';
+        authError.textContent = msg;
+        authError.classList.remove('hidden');
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Entrar';
+      }
+    });
+
+    btnLogout.addEventListener('click', async () => {
+      if (!confirm('Encerrar sessão?')) return;
+      await signOut(auth);
+    });
+
+    // -------------- BOOT APP (only once) --------------
+    let booted = false;
+    function bootAppOnce() {
+      if (booted) return;
+      booted = true;
+      initApp();
+    }
+
+    // ============================================================
+    //  APP INIT
+    // ============================================================
+    function initApp() {
+
+      // ----- Config API URL (Firestore) -----
+      onSnapshot(configDocRef, (docSnap) => {
+        const displayApiUrl = $('display-api-url');
+        if (docSnap.exists() && docSnap.data().url) {
+          API_BASE_URL = docSnap.data().url;
+          if (displayApiUrl) {
+            displayApiUrl.textContent = API_BASE_URL;
+            displayApiUrl.style.backgroundColor = '#d1fae5';
+            setTimeout(() => displayApiUrl.style.backgroundColor = 'white', 1000);
+          }
+          logPanel('Sistema: Link da API atualizado via nuvem.', 'ok');
         } else {
-        printerData = (Array.isArray(initialPrinters) ? initialPrinters.slice() : []).concat(Array.isArray(initialPrinters2floor) ? initialPrinters2floor.slice() : []);
+          if (displayApiUrl) displayApiUrl.textContent = API_BASE_URL + '  (padrão)';
         }
-    } catch(e) {
-        console.warn('Erro ao ler localStorage, usando hardcoded', e);
-        printerData = (Array.isArray(initialPrinters) ? initialPrinters.slice() : []).concat(Array.isArray(initialPrinters2floor) ? initialPrinters2floor.slice() : []);
-    }
-    renderAllPrinters();
+      }, (error) => console.error('Erro Firebase config:', error));
+
+      $('btn-save-api-url')?.addEventListener('click', async () => {
+        const newUrl = $('new-api-url').value.trim();
+        if (!newUrl) return showToast('Cole um link válido.', 'error');
+        const btn = $('btn-save-api-url');
+        btn.textContent = 'Salvando...';
+        btn.disabled = true;
+        try {
+          await setDoc(configDocRef, { url: newUrl, updatedAt: new Date(), updatedBy: auth.currentUser?.email || 'anon' });
+          showToast('Link atualizado! Todos os usuários recebem em tempo real.', 'success');
+          $('new-api-url').value = '';
+        } catch (e) {
+          showToast('Erro ao salvar: ' + e.message, 'error');
+        } finally {
+          btn.textContent = 'Atualizar Link';
+          btn.disabled = false;
+        }
+      });
+
+      // ----- Printers from Firestore (realtime) -----
+      onSnapshot(printersColRef, (snap) => {
+        printerData = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          printerData.push({ ...data, _id: d.id });
+        });
+        renderAllPrinters();
+        renderList();
+        updateStats();
+      }, (err) => {
+        console.error('Erro Firestore printers:', err);
+        showToast('Erro ao carregar impressoras do Firebase.', 'error');
+      });
+
+      // ----- Seed (botão sidebar + banner) -----
+      async function runSeed() {
+        if (!confirm('Importar ' + SEED_PRINTERS.length + ' impressoras iniciais?')) return;
+        try {
+          const existing = await getDocs(printersColRef);
+          if (existing.size > 0) {
+            if (!confirm('Já existem ' + existing.size + ' impressoras no banco. Continuar mesmo assim?')) return;
+          }
+          const batch = writeBatch(db);
+          SEED_PRINTERS.forEach(p => batch.set(doc(printersColRef), p));
+          await batch.commit();
+          showToast('Importado: ' + SEED_PRINTERS.length + ' impressoras.', 'success');
+          logPanel('Seed: ' + SEED_PRINTERS.length + ' impressoras importadas.', 'ok');
+        } catch (e) {
+          showToast('Erro no seed: ' + e.message, 'error');
+        }
+      }
+      $('btn-seed-data').addEventListener('click', runSeed);
+      $('btn-seed-banner').addEventListener('click', runSeed);
+
+      // ----- Floor selector -----
+      floorSelect.addEventListener('change', (e) => {
+        currentFloor = parseInt(e.target.value, 10);
+        updateMapImage();
+        renderAllPrinters();
+      });
+      updateMapImage();
+
+      // ----- Sidebar listeners -----
+      bindSidebar();
+
+      // ----- Search -----
+      bindSearch();
+
+      // ----- Modal Detalhes -----
+      bindDetailsModal();
+
+      // ----- Modal Formulário (Add/Edit) -----
+      bindFormModal();
+
+      // ----- View Toggle -----
+      $('view-toggle').addEventListener('click', () => {
+        const map = $('view-map'), list = $('view-list');
+        const lbl = $('view-toggle-label');
+        if (map.classList.contains('hidden')) {
+          map.classList.remove('hidden'); list.classList.add('hidden'); lbl.textContent = 'Lista';
+        } else {
+          map.classList.add('hidden'); list.classList.remove('hidden'); lbl.textContent = 'Mapa';
+          renderList();
+        }
+      });
+
+      // ----- Scan all -----
+      $('btn-scan-all').addEventListener('click', scanAllPrinters);
+
+      // ----- Map click for pick position -----
+      mapContainer.addEventListener('click', onMapClickForPick);
+
+      // ----- Browser interno -----
+      bindBrowser();
+
+      // ----- Escape -----
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeDetailsModal();
+          closeFormModal();
+          searchResultsPanel.style.display = 'none';
+          if (searchContainer.classList.contains('expanded')) {
+            searchContainer.classList.remove('expanded'); searchInput.value = '';
+          }
+        }
+      });
+
+      // ----- Auto status check on map points (lazy, on demand) -----
     }
 
-    function debounce(fn, delay) {
-    let t;
-    return (...args) => { clearTimeout(t); t = setTimeout(()=> fn(...args), delay); };
-    }
+    // ============================================================
+    //  RENDER
+    // ============================================================
+    function createPrinterPointElement(printer) {
+      const point = document.createElement('button');
+      const st = statusCache.get(printer.selb) || 'unknown';
+      point.className = `printer-point status-${st}`;
+      point.style.top = printer.pos.top;
+      point.style.left = printer.pos.left;
+      point.dataset.printerSelb = printer.selb;
+      point.dataset.printerId = printer._id;
+      point.setAttribute('aria-label', `Impressora ${printer.name}, SELB ${printer.selb}, Andar ${printer.floor}`);
+      point.innerHTML = `<svg class="printer-point-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>`;
 
-    function createPrinterPointElement(printer){
-    const point = document.createElement('button');
-    point.className = `printer-point bg-blue-500`;
-    point.style.top = printer.pos.top;
-    point.style.left = printer.pos.left;
-    point.style.setProperty('--point-color', '#3b82f6');
-    point.dataset.printerSelb = printer.selb;
-    point.setAttribute('aria-label', `Impressora ${printer.name}, SELB ${printer.selb}, Andar ${printer.floor}`);
-    point.innerHTML = `<svg class="printer-point-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>`;
-
-    point.addEventListener('click', (e) => {
+      point.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (pickPosMode) return;
         const selb = e.currentTarget.dataset.printerSelb;
         const current = printerData.find(p => p.selb === selb);
         if (!current) return;
         if (current.floor !== currentFloor) {
-        currentFloor = current.floor;
-        floorSelect.value = currentFloor;
-        updateMapImage();
-        renderAllPrinters();
+          currentFloor = current.floor; floorSelect.value = currentFloor;
+          updateMapImage(); renderAllPrinters();
         }
         focusPrinter(current);
         showDetailsModal(current);
-    });
+      });
 
-    point.addEventListener('mouseenter', (e) => {
+      point.addEventListener('mouseenter', (e) => {
+        if (pickPosMode) return;
         const selb = e.currentTarget.dataset.printerSelb;
         const current = printerData.find(p => p.selb === selb) || printer;
-        tooltip.innerHTML = `<strong>${current.name}</strong><br>SELB: ${current.selb} (Andar ${current.floor})`;
+        tooltip.innerHTML = `<strong>${escapeHtml(current.name)}</strong><br>SELB: ${escapeHtml(current.selb)} (Andar ${current.floor})`;
         const pointRect = e.currentTarget.getBoundingClientRect();
         const containerRect = mapContainer.getBoundingClientRect();
         tooltip.style.top = `${pointRect.top - containerRect.top}px`;
         tooltip.style.left = `${pointRect.left - containerRect.left}px`;
         tooltip.classList.add('show');
-    });
-    point.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
-
-    return point;
+      });
+      point.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+      return point;
     }
 
-    function renderAllPrinters(){ mapInner.querySelectorAll('.printer-point').forEach(n=>n.remove()); const fragment = document.createDocumentFragment(); printerData.filter(p => p.floor === currentFloor).forEach(p => { const node = createPrinterPointElement(p); fragment.appendChild(node); }); mapInner.appendChild(fragment); }
+    function renderAllPrinters() {
+      mapInner.querySelectorAll('.printer-point').forEach(n => n.remove());
+      const fragment = document.createDocumentFragment();
+      printerData.filter(p => p.floor === currentFloor).forEach(p => fragment.appendChild(createPrinterPointElement(p)));
+      mapInner.appendChild(fragment);
+    }
+
+    function renderList() {
+      const tbody = $('list-tbody');
+      if (!tbody) return;
+      const q = ($('list-search')?.value || '').toLowerCase().trim();
+      const stf = $('list-filter-status')?.value || '';
+      const items = printerData.filter(p => {
+        if (q && !(p.name?.toLowerCase().includes(q) || p.selb?.toLowerCase().includes(q) || p.ip?.toLowerCase().includes(q) || p.department?.toLowerCase().includes(q))) return false;
+        const st = statusCache.get(p.selb) || 'unknown';
+        if (stf && st !== stf) return false;
+        return true;
+      }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+      tbody.innerHTML = items.map(p => {
+        const st = statusCache.get(p.selb) || 'unknown';
+        const pill = st === 'ok' ? '<span class="pill pill-ok">● Online</span>'
+                  : st === 'err' ? '<span class="pill pill-err">● Erro</span>'
+                  : '<span class="pill pill-unknown">● ?</span>';
+        return `<tr data-id="${p._id}">
+          <td>${pill}</td>
+          <td class="font-semibold">${escapeHtml(p.name)}</td>
+          <td class="mono">${escapeHtml(p.selb)}</td>
+          <td>${escapeHtml(p.department || '')}</td>
+          <td class="mono">${escapeHtml(p.ip)}</td>
+          <td>${p.floor}</td>
+          <td><button class="btn btn-ghost text-xs row-open" data-id="${p._id}">Abrir</button></td>
+        </tr>`;
+      }).join('');
+
+      tbody.querySelectorAll('.row-open').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.id;
+          const p = printerData.find(x => x._id === id);
+          if (!p) return;
+          if (p.floor !== currentFloor) {
+            currentFloor = p.floor; floorSelect.value = currentFloor;
+            updateMapImage(); renderAllPrinters();
+          }
+          showDetailsModal(p);
+        });
+      });
+    }
+
+    function updateStats() {
+      $('stat-total').textContent = printerData.length;
+      let ok = 0, err = 0, unk = 0;
+      printerData.forEach(p => {
+        const s = statusCache.get(p.selb) || 'unknown';
+        if (s === 'ok') ok++; else if (s === 'err') err++; else unk++;
+      });
+      $('stat-ok').textContent = ok;
+      $('stat-err').textContent = err;
+      $('stat-unknown').textContent = unk;
+      const banner = $('empty-db-banner');
+      if (banner) banner.classList.toggle('hidden', printerData.length > 0);
+    }
 
     function updateMapImage() {
-    if (currentFloor === 1) { mapImage.src = 'plantanto.jpg'; } else if (currentFloor === 2) { mapImage.src = 'plantanto2.jpg'; }
-    mapImage.onerror = function() { this.onerror = null; this.src = 'https://placehold.co/3840x2715/ffffff/cccccc?text=Planta+Indispon%C3%ADvel'; };
+      mapImage.src = currentFloor === 1 ? 'plantanto.jpg' : 'plantanto2.jpg';
+      mapImage.onerror = function () { this.onerror = null; this.src = 'https://placehold.co/3840x2715/ffffff/cccccc?text=Planta+Indispon%C3%ADvel'; };
     }
 
-    function showDetailsModal(printer){
-    if (transientLabel) { transientLabel.remove(); transientLabel = null; }
+    // ============================================================
+    //  DETALHES MODAL
+    // ============================================================
+    function bindDetailsModal() {
+      document.querySelectorAll('.close-modal-btn').forEach(b => b.addEventListener('click', closeDetailsModal));
+      detailsModal.addEventListener('click', (e) => { if (e.target === detailsModal) closeDetailsModal(); });
 
-    document.getElementById('modal-title').textContent = printer.name;
-    document.getElementById('modal-department').textContent = printer.department;
-    document.getElementById('modal-selb').textContent = printer.selb;
-    document.getElementById('modal-ip').textContent = printer.ip;
-    document.getElementById('modal-observations').textContent = printer.observations || 'Nenhuma observação.';
-    currentPrinterIp = printer.ip;
+      // Tabs
+      detailsModal.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          detailsModal.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const tab = btn.dataset.tab;
+          detailsModal.querySelectorAll('.tab-panel').forEach(p => {
+            p.classList.toggle('hidden', p.dataset.panel !== tab);
+          });
+          // Auto-check status when opening Diagnóstico tab the first time
+          if (tab === 'diag' && currentPrinterIp && !$('status-display').dataset.checked) {
+            checkStatus(currentPrinterIp, true);
+            $('status-display').dataset.checked = '1';
+          }
+        });
+      });
 
-    // Reset status display
-    document.getElementById('status-display').classList.add('hidden');
-    document.getElementById('status-sq').style.background = '#ccc';
-    document.getElementById('status-text').innerText = '--';
-    document.getElementById('status-message').innerText = '';
-    detailsModal.classList.remove('hidden');
-    detailsModal.setAttribute('aria-hidden','false');
+      $('check-status-btn').addEventListener('click', () => {
+        // switch to diag tab and check
+        detailsModal.querySelector('.tab-btn[data-tab="diag"]').click();
+        checkStatus(currentPrinterIp, true);
+      });
+      $('calibrate-btn').addEventListener('click', () => sendCommand(CALIBRAGEM, 'Calibragem'));
+      $('head-test-btn').addEventListener('click', () => sendCommand(TESTE_CABECA, 'Teste de cabeça'));
+      $('modal-info-btn').addEventListener('click', collectInfo);
+      $('modal-web-btn').addEventListener('click', () => {
+        if (currentPrinterIp) openBrowser(currentPrinterIp);
+        else showToast('Selecione uma impressora', 'error');
+      });
 
-    // --- atualização do painel lateral (auto-preenchimento do IP) ---
-    if (ipInputPanel) {
-        ipInputPanel.value = printer.ip || '';
-        panelCurrentIp.textContent = printer.ip || 'nenhum';
-        logPanel(`IP preenchido automaticamente: ${printer.ip}`);
+      $('modal-edit-btn').addEventListener('click', () => {
+        const p = printerData.find(x => x.selb === currentPrinterSelb);
+        if (p) openFormModal(p);
+      });
+      $('modal-repos-btn').addEventListener('click', () => {
+        const p = printerData.find(x => x.selb === currentPrinterSelb);
+        if (!p) return;
+        reposPrinter = p;
+        pickPosMode = true;
+        mapContainer.classList.add('pick-mode');
+        closeDetailsModal();
+        showToast('Clique no mapa para reposicionar a impressora', 'success');
+      });
+      $('modal-delete-btn').addEventListener('click', async () => {
+        const p = printerData.find(x => x.selb === currentPrinterSelb);
+        if (!p) return;
+        if (!confirm(`Excluir impressora "${p.name}" (${p.selb})?`)) return;
+        try {
+          await deleteDoc(doc(db, 'printers', p._id));
+          showToast('Impressora excluída.', 'success');
+          closeDetailsModal();
+        } catch (e) {
+          showToast('Erro ao excluir: ' + e.message, 'error');
+        }
+      });
     }
+
+    function showDetailsModal(printer) {
+      if (transientLabel) { transientLabel.remove(); transientLabel = null; }
+      $('modal-title').textContent = printer.name;
+      $('modal-department').textContent = printer.department || '—';
+      $('modal-selb').textContent = printer.selb;
+      $('modal-ip').textContent = printer.ip;
+      $('modal-observations').textContent = printer.observations || 'Nenhuma observação.';
+      currentPrinterIp = printer.ip;
+      currentPrinterSelb = printer.selb;
+
+      // Status pill no hero
+      const st = statusCache.get(printer.selb) || 'unknown';
+      const pillEl = $('modal-status-pill');
+      if (pillEl) {
+        const map = {
+          ok:      '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/30 backdrop-blur text-emerald-100 text-xs font-semibold">● Online</span>',
+          err:     '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-500/30 backdrop-blur text-red-100 text-xs font-semibold">● Com problema</span>',
+          unknown: '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur text-white/70 text-xs font-semibold">○ Não verificada</span>'
+        };
+        pillEl.innerHTML = map[st] || map.unknown;
+      }
+
+      // Reset tabs to "actions"
+      detailsModal.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'actions'));
+      detailsModal.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== 'actions'));
+
+      // Reset diagnostic state
+      $('status-display').classList.add('hidden');
+      delete $('status-display').dataset.checked;
+      $('status-sq').style.background = '#ccc';
+      $('status-text').innerText = '--';
+      $('modal-info-output').classList.add('hidden');
+      $('modal-info-output').textContent = '';
+
+      detailsModal.classList.remove('hidden');
+      detailsModal.setAttribute('aria-hidden', 'false');
+
+      // sidebar sync
+      setFocusedPrinter(printer);
     }
-    
-    async function checkStatus(ip) {
-    const display = document.getElementById('status-display');
-    const sq = document.getElementById('status-sq');
-    const statusText = document.getElementById('status-text');
-    const message = document.getElementById('status-message');
 
-    display.classList.add('hidden');
-    sq.style.background = '#ccc';
-    statusText.innerText = '--';
-    statusText.style.color = '';
-    message.innerText = '';
+    function setFocusedPrinter(printer) {
+      const ipInputPanel = $('ip-input-panel');
+      const card = $('focus-card');
+      const name = $('focus-name');
+      const dept = $('focus-dept');
+      const pill = $('focus-status-pill');
+      if (ipInputPanel) ipInputPanel.value = printer.ip || '';
+      if (panelCurrentIp) {
+        panelCurrentIp.textContent = printer.ip || '';
+        panelCurrentIp.classList.toggle('hidden', !printer.ip);
+      }
+      if (name) name.textContent = printer.name || '—';
+      if (dept) dept.textContent = `${printer.department || ''} · ${printer.selb || ''} · Andar ${printer.floor}`;
+      if (card) {
+        card.classList.remove('border-dashed', 'border-slate-300', 'bg-slate-50');
+        card.classList.add('border-solid', 'border-[#E07A5F]', 'bg-orange-50');
+      }
+      if (pill) {
+        const st = statusCache.get(printer.selb) || 'unknown';
+        const m = {
+          ok:      ['bg-emerald-200 text-emerald-800', '● Online'],
+          err:     ['bg-red-200 text-red-800', '● Problema'],
+          unknown: ['bg-slate-200 text-slate-600', '○ Não verif.']
+        }[st];
+        pill.className = 'text-[10px] normal-case font-medium px-2 py-0.5 rounded-full ' + m[0];
+        pill.textContent = m[1];
+      }
+      logPanel(`IP em foco: ${printer.ip} (${printer.name})`, 'info');
+    }
 
-    if (!ip) { showToast('IP inválido!'); if (panelLog) logPanel('Status: IP inválido'); return; }
+    function closeDetailsModal() {
+      detailsModal.classList.add('hidden');
+      detailsModal.setAttribute('aria-hidden', 'true');
+    }
 
-    const TOTAL_TIMEOUT = 5000;
-    const controller = new AbortController();
-    const signal = controller.signal;
-    const timeoutId = setTimeout(() => controller.abort(), TOTAL_TIMEOUT);
+    async function safeFetchJson(url, opts) {
+      const res = await fetch(url, { cache: 'no-store', ...(opts || {}) });
+      const text = await res.text();
+      if (!text || !text.trim()) {
+        throw new Error(`Resposta vazia do proxy (HTTP ${res.status}). Pode ser timeout do Cloudflare ou impressora offline.`);
+      }
+      try { return JSON.parse(text); }
+      catch (e) {
+        const sample = text.slice(0, 120).replace(/\s+/g, ' ');
+        throw new Error(`Resposta não-JSON: ${sample}`);
+      }
+    }
 
-    try {
+    async function collectInfo() {
+      if (!currentPrinterIp) { showToast('Selecione uma impressora', 'error'); return; }
+      const out = $('modal-info-output');
+      const btn = $('modal-info-btn');
+      out.classList.remove('hidden');
+      out.innerHTML = '<div class="flex items-center gap-2 text-slate-300 text-xs"><div class="animate-spin rounded-full h-3 w-3 border-2 border-emerald-400 border-t-transparent"></div>Coletando dados da impressora...</div>';
+      if (btn) { btn.disabled = true; btn.dataset.origText = btn.textContent; btn.textContent = 'Coletando...'; }
+      try {
+        const data = await safeFetchJson(`${API_BASE_URL}?action=info&ip=${encodeURIComponent(currentPrinterIp)}`);
+        renderInfoCard(out, data);
+        logPanel(`Info coletada de ${data.ip}`, 'ok');
+      } catch (e) {
+        out.innerHTML = `<div class="text-red-300 text-xs"><div class="font-semibold mb-1">Falha ao coletar</div><div class="opacity-80">${escapeHtml(e.message)}</div></div>`;
+        logPanel('Erro ao coletar info: ' + e.message, 'err');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = btn.dataset.origText || 'Diagnóstico'; }
+      }
+    }
+
+    function renderInfoCard(container, data) {
+      const q = data.queries || {};
+      const clean = (v) => (v?.reply || '').replace(/[\x00-\x1f]+/g, ' ').trim().replace(/^"|"$/g, '');
+      const rows = [
+        ['Modelo',       clean(q.model)],
+        ['Serial',       clean(q.serial)],
+        ['Firmware',     clean(q.firmware)],
+        ['Odômetro',     clean(q.odometer)],
+        ['Temp. Cabeça', clean(q.head_temp)],
+        ['Mídia',        clean(q.media_status)],
+      ].filter(([, v]) => v && v !== '""');
+      const rowsHTML = rows.map(([k, v]) =>
+        `<div class="flex justify-between gap-2 py-1.5 border-b border-slate-700/40 last:border-b-0"><span class="text-slate-400 text-xs">${k}</span><span class="font-medium text-emerald-300 text-xs text-right break-all">${escapeHtml(v)}</span></div>`
+      ).join('');
+
+      const hsRaw = clean(q.host_status);
+      const hostBlock = hsRaw ? `<details class="mt-2 text-xs"><summary class="cursor-pointer text-slate-400 hover:text-emerald-300">Host Status (raw)</summary><pre class="mt-1 text-[10px] text-slate-300 whitespace-pre-wrap break-all">${escapeHtml(hsRaw.slice(0, 400))}</pre></details>` : '';
+
+      const reachPill = data.reachable
+        ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold">● Online</span>'
+        : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-semibold">● Offline</span>';
+
+      const webBlock = data.web?.h3?.length
+        ? `<div class="mt-2 text-xs"><div class="text-slate-400 mb-1">Status (web):</div><div class="text-emerald-300">${data.web.h3.slice(0, 4).map(escapeHtml).join(' · ')}</div></div>`
+        : '';
+
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold text-emerald-300">${escapeHtml(data.ip)}</div>
+          ${reachPill}
+        </div>
+        ${rowsHTML || '<div class="text-slate-400 text-xs italic">Nenhum dado retornado pela impressora.</div>'}
+        ${webBlock}
+        ${hostBlock}
+      `;
+    }
+
+    // ============================================================
+    //  FORM MODAL (Add/Edit)
+    // ============================================================
+    function bindFormModal() {
+      $('btn-add-printer').addEventListener('click', () => openFormModal(null));
+      document.querySelectorAll('.close-form-btn').forEach(b => b.addEventListener('click', closeFormModal));
+      $('form-cancel-btn').addEventListener('click', closeFormModal);
+      formModal.addEventListener('click', (e) => { if (e.target === formModal) closeFormModal(); });
+
+      $('f-pickpos-btn').addEventListener('click', () => {
+        pickPosMode = true;
+        mapContainer.classList.add('pick-mode');
+        closeFormModal(true); // hide but keep state
+        showToast('Clique no mapa para fixar a posição', 'success');
+      });
+
+      $('printer-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+          name: $('f-name').value.trim(),
+          selb: $('f-selb').value.trim(),
+          ip: $('f-ip').value.trim(),
+          department: $('f-department').value.trim(),
+          observations: $('f-observations').value.trim(),
+          floor: parseInt($('f-floor').value, 10),
+        };
+        const posStr = $('f-pos').value.trim();
+        const m = posStr.match(/top:\s*([\d.]+)%,\s*left:\s*([\d.]+)%/);
+        if (!m) { showToast('Defina a posição no mapa.', 'error'); return; }
+        data.pos = { top: m[1] + '%', left: m[2] + '%' };
+
+        if (!data.name || !data.selb || !data.ip) { showToast('Preencha os campos obrigatórios.', 'error'); return; }
+
+        try {
+          if (editingPrinterId) {
+            await updateDoc(doc(db, 'printers', editingPrinterId), data);
+            showToast('Atualizado!', 'success');
+          } else {
+            await addDoc(printersColRef, data);
+            showToast('Adicionado!', 'success');
+          }
+          closeFormModal();
+        } catch (err) {
+          showToast('Erro: ' + err.message, 'error');
+        }
+      });
+    }
+
+    function openFormModal(printer) {
+      editingPrinterId = printer?._id || null;
+      $('form-title').textContent = editingPrinterId ? 'Editar Impressora' : 'Nova Impressora';
+      $('f-name').value = printer?.name || '';
+      $('f-selb').value = printer?.selb || '';
+      $('f-ip').value = printer?.ip || '';
+      $('f-department').value = printer?.department || '';
+      $('f-observations').value = printer?.observations || '';
+      $('f-floor').value = printer?.floor || currentFloor;
+      $('f-pos').value = printer?.pos ? `top:${parseFloat(printer.pos.top).toFixed(2)}%, left:${parseFloat(printer.pos.left).toFixed(2)}%` : '';
+      formModal.classList.remove('hidden');
+      formModal.setAttribute('aria-hidden', 'false');
+      // close details if open
+      detailsModal.classList.add('hidden');
+    }
+
+    function closeFormModal(keepState) {
+      formModal.classList.add('hidden');
+      formModal.setAttribute('aria-hidden', 'true');
+      if (!keepState) {
+        editingPrinterId = null;
+        pickPosMode = false;
+        mapContainer.classList.remove('pick-mode');
+      }
+    }
+
+    async function onMapClickForPick(e) {
+      if (!pickPosMode) return;
+      if (e.target.closest('.printer-point')) return;
+      const rect = mapInner.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const left = (x / rect.width) * 100;
+      const top = (y / rect.height) * 100;
+      const pos = { top: top.toFixed(4) + '%', left: left.toFixed(4) + '%' };
+
+      pickPosMode = false;
+      mapContainer.classList.remove('pick-mode');
+
+      // Modo reposicionamento direto: salva no Firestore sem passar pelo form
+      if (reposPrinter && reposPrinter._id) {
+        const p = reposPrinter;
+        reposPrinter = null;
+        try {
+          await updateDoc(doc(db, 'printers', p._id), { pos });
+          showToast(`Reposicionada: ${p.name}`, 'success');
+          logPanel(`Reposicionada ${p.name} -> ${pos.top}, ${pos.left}`, 'ok');
+        } catch (err) {
+          showToast('Erro ao reposicionar: ' + err.message, 'error');
+        }
+        return;
+      }
+
+      // Modo formulário (add/edit)
+      $('f-pos').value = `top:${top.toFixed(4)}%, left:${left.toFixed(4)}%`;
+      formModal.classList.remove('hidden');
+      formModal.setAttribute('aria-hidden', 'false');
+      showToast('Posição definida.', 'success');
+    }
+
+    // ============================================================
+    //  STATUS / COMANDOS
+    // ============================================================
+    async function checkStatus(ip, showInModal = false) {
+      if (showInModal) {
+        $('status-display').classList.add('hidden');
+        $('status-sq').style.background = '#ccc';
+        $('status-text').innerText = '--';
+        $('status-text').style.color = '';
+        $('status-message').innerText = '';
+      }
+      if (!ip) { showToast('IP inválido!', 'error'); return 'err'; }
+
+      const TOTAL_TIMEOUT = 7000;
+      const controller = new AbortController();
+      const signal = controller.signal;
+      const timeoutId = setTimeout(() => controller.abort(), TOTAL_TIMEOUT);
+
+      let result = 'unknown';
+      try {
         let res = await fetch(`${API_BASE_URL}?ip=${encodeURIComponent(ip)}&as_json=1`, { cache: 'no-store', signal });
-
         if (!res.ok) {
-        res = await fetch(`${API_BASE_URL}?ip=${encodeURIComponent(ip)}`, { cache: 'no-store', signal });
-        if (!res.ok) throw new Error('Erro HTTP ' + res.status);
+          res = await fetch(`${API_BASE_URL}?ip=${encodeURIComponent(ip)}`, { cache: 'no-store', signal });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
         }
-
         clearTimeout(timeoutId);
-
         const ct = (res.headers.get('content-type') || '').toLowerCase();
-
+        let bodyText = '';
         if (ct.includes('application/json')) {
-        const payload = await res.json();
-        const bodyText = payload.body_base64 ? base64ToUtf8(payload.body_base64) : (payload.raw_html || payload.raw_response || JSON.stringify(payload));
-        applyZebraHeuristics(bodyText, sq, statusText, message, display);
-        logPanel(`Status recebido (JSON) de ${ip}`);
-        return;
-        }
-
-        const text = await res.text();
-        applyZebraHeuristics(text, sq, statusText, message, display);
-        logPanel(`Status recebido (HTML) de ${ip}`);
-
-    } catch (err) {
-        clearTimeout(timeoutId);
-
-        const isAbort = err && (err.name === 'AbortError' || /aborted/i.test(err.message));
-        display.classList.remove('hidden');
-        sq.style.background = 'red';
-        statusText.style.color = 'red';
-
-        if (isAbort) {
-        statusText.innerText = 'Erro de conexão';
-        message.innerText = 'Impressora desconectada da rede, verifique o cabo de rede e tente novamente';
-        logPanel(`Status: Timeout (${ip})`);
-        return;
-        }
-
-        const errMsg = (err && err.message) ? err.message : String(err);
-        if (errMsg.includes('502') || errMsg.includes('Failed to fetch')) {
-        statusText.innerText = 'Erro de Proxy/Conexão';
-        message.innerText = 'Verifique se o link da API (Cloudflare) está ativo e correto no painel lateral.';
-        logPanel(`Status: Erro de API ${ip}`);
+          const payload = await res.json();
+          bodyText = payload.body_base64 ? base64ToUtf8(payload.body_base64) : (payload.raw_html || JSON.stringify(payload));
         } else {
-        statusText.innerText = 'Erro';
-        message.innerText = `Erro ao conectar: ${errMsg}`;
-        logPanel(`Status: Erro ${ip} -> ${errMsg}`);
+          bodyText = await res.text();
         }
-    }
+        const sq = showInModal ? $('status-sq') : { style: {} };
+        const stTxt = showInModal ? $('status-text') : { style: {}, innerText: '' };
+        const msg = showInModal ? $('status-message') : { innerText: '' };
+        const disp = showInModal ? $('status-display') : { classList: { remove: () => {} } };
+        result = applyZebraHeuristics(bodyText, sq, stTxt, msg, disp);
+        logPanel(`Status ${ip}: ${result}`, result === 'ok' ? 'ok' : 'err');
+      } catch (err) {
+        clearTimeout(timeoutId);
+        result = 'err';
+        if (showInModal) {
+          $('status-display').classList.remove('hidden');
+          $('status-sq').style.background = 'red';
+          $('status-text').style.color = 'red';
+          $('status-text').innerText = err.name === 'AbortError' ? 'Erro de conexão' : 'Erro';
+          $('status-message').innerText = err.name === 'AbortError'
+            ? 'Impressora desconectada/timeout.'
+            : `Erro: ${err.message}`;
+        }
+        logPanel(`Status ${ip}: erro - ${err.message}`, 'err');
+      }
+      // update cache
+      const printer = printerData.find(p => p.ip === ip);
+      if (printer) {
+        statusCache.set(printer.selb, result);
+        // refresh point color
+        const node = document.querySelector(`.printer-point[data-printer-selb="${CSS.escape(printer.selb)}"]`);
+        if (node) {
+          node.classList.remove('status-ok', 'status-err', 'status-warn', 'status-unknown');
+          node.classList.add(`status-${result}`);
+        }
+        updateStats();
+        renderList();
+      }
+      return result;
     }
 
     function applyZebraHeuristics(raw, sq, statusText, message, display) {
-    const lower = (raw || '').toLowerCase();
+      const lower = (raw || '').toLowerCase();
+      const h3s = [];
+      (raw || '').replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (m, g1) => { h3s.push(g1.replace(/<[^>]+>/g, '').trim()); return m; });
 
-    const h3s = [];
-    raw.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (m, g1) => {
-        const cleaned = g1.replace(/<[^>]+>/g, '').trim();
-        h3s.push(cleaned); 
-        return m;
-    });
-
-    let statusH3Index = h3s.findIndex(h => /status[:\s]/i.test(h) || /em pausa|em aguard|aguardo|status/i.test(h));
-    if (statusH3Index === -1) {
-        statusH3Index = h3s.findIndex(h => /em pausa|pausa|aguardo|em aguard/i.test(h));
-    }
-
-    const statusH3 = statusH3Index >= 0 ? h3s[statusH3Index] : '';
-    let condH3 = (statusH3Index >= 0 && (statusH3Index + 1) < h3s.length) ? h3s[statusH3Index + 1] : '';
-    if (!condH3) {
+      let statusH3Index = h3s.findIndex(h => /status[:\s]/i.test(h) || /em pausa|em aguard|aguardo|status/i.test(h));
+      if (statusH3Index === -1) statusH3Index = h3s.findIndex(h => /em pausa|pausa|aguardo|em aguard/i.test(h));
+      const statusH3 = statusH3Index >= 0 ? h3s[statusH3Index] : '';
+      let condH3 = (statusH3Index >= 0 && (statusH3Index + 1) < h3s.length) ? h3s[statusH3Index + 1] : '';
+      if (!condH3) {
         const found = h3s.find(h => /condi|erro|falta|cab|papel|paper/i.test(h));
         condH3 = found || '';
-    }
+      }
+      const s = (statusH3 || '').toLowerCase();
+      const e = (condH3 || '').toLowerCase();
 
-    const s = (statusH3 || '').toLowerCase();
-    const e = (condH3 || '').toLowerCase();
+      let result = 'unknown';
+      const setOk = (text, mtext) => { sq.style.background = '#10b981'; statusText.style.color = '#065f46'; statusText.innerText = text; message.innerText = mtext; display.classList.remove('hidden'); result = 'ok'; };
+      const setErr = (text, mtext) => { sq.style.background = '#ef4444'; statusText.style.color = '#991b1b'; statusText.innerText = text; message.innerText = mtext; display.classList.remove('hidden'); result = 'err'; };
 
-    if (s.includes('aguardo') || s.includes('em aguardo') || s.includes('ready') || s.includes('waiting') || (lower.includes('status:') && /aguardo|ready|waiting/.test(lower))) {
-        sq.style.background = 'green';
-        statusText.style.color = 'green';
-        statusText.innerText = 'Pronto para impressão';
-        message.innerText = 'Tudo ok para imprimir';
-        display.classList.remove('hidden');
-        return;
-    }
+      if (s.includes('aguardo') || s.includes('ready') || s.includes('waiting') || (lower.includes('status:') && /aguardo|ready|waiting/.test(lower))) {
+        setOk('Pronto para impressão', 'Tudo ok para imprimir'); return result;
+      }
+      if ((s.includes('em pausa') || s.includes('pausa') || s.includes('paused') || s.includes('pause')) && (!condH3 || condH3.trim() === '')) {
+        setErr('Em Pausa', 'Pressione o botão FEED para despausar'); return result;
+      }
+      const cabAberto = (/cab|cabec/i.test(e) && /abert/i.test(e)) || /head open|open head/i.test(e);
+      if ((s.includes('pausa') || lower.includes('pause')) && cabAberto) { setErr('Em Erro', 'Impressora aberta - feche a tampa'); return result; }
+      const faltaPapel = /falta\s*papel|paper out|out of paper/i.test(e) || /falta.*papel/i.test(lower);
+      if ((s.includes('pausa') || lower.includes('pause')) && faltaPapel) { setErr('Em Erro', 'Verifique etiqueta/ribbon'); return result; }
 
-    if ((s.includes('em pausa') || s.includes('pausa') || s.includes('pause') || s.includes('paused') || lower.includes('em pausa') || lower.includes('pause')) && (!condH3 || condH3.trim() === '')) {
-        sq.style.background = 'red';
-        statusText.style.color = 'red';
-        statusText.innerText = 'Em Pausa';
-        message.innerText = 'Para despausar pressione o botão feed';
-        display.classList.remove('hidden');
-        return;
-    }
-
-    const cabAbertoDetected = ((/cab|cab\./i.test(e) && /abert/i.test(e)) || (/cabec/i.test(e) && /abert/i.test(e)) || (/cab/i.test(e) && /abert/i.test(e)) || /head open/i.test(e) || /open head/i.test(e));
-    if ((s.includes('em pausa') || s.includes('pausa') || s.includes('pause') || s.includes('paused') || lower.includes('em pausa') || lower.includes('pause')) && cabAbertoDetected) {
-        sq.style.background = 'red';
-        statusText.style.color = 'red';
-        statusText.innerText = 'Em Erro';
-        message.innerText = 'Impressora aberta — feche a impressora';
-        display.classList.remove('hidden');
-        return;
-    }
-
-    const faltaPapelDetected = /falta\s*papel|falta de papel|papel/i.test(e) || /falta.*papel/i.test(lower) || /paper/i.test(e) || /paper out/i.test(lower) || /out of paper/i.test(lower);
-    if ((s.includes('em pausa') || s.includes('pausa') || s.includes('pause') || s.includes('paused') || lower.includes('em pausa') || lower.includes('pause')) && faltaPapelDetected) {
-        sq.style.background = 'red';
-        statusText.style.color = 'red';
-        statusText.innerText = 'Em Erro';
-        message.innerText = 'Impressora com erro de etiqueta/ribon — verifique os insumos';
-        display.classList.remove('hidden');
-        return;
-    }
-
-    const okKeywords = ['aguardo','pronto','ready','ok','waiting'];
-    const pauseKeywords = ['pausa','pause','paused','error','erro','aberto','open','falta papel','paper'];
-
-    const anyOk = okKeywords.some(k => lower.includes(k));
-    const anyPause = pauseKeywords.some(k => lower.includes(k));
-
-    if (anyOk && !anyPause) {
-        sq.style.background = 'green';
-        statusText.style.color = 'green';
-        statusText.innerText = 'Pronto para impressão';
-        message.innerText = 'Tudo ok para imprimir';
-    } else if (anyPause) {
-        sq.style.background = 'red';
-        statusText.style.color = 'red';
-        statusText.innerText = 'Em Erro';
-        message.innerText = (condH3 ? condH3 : 'Condição de erro detectada.');
-    } else {
-        sq.style.background = 'red';
-        statusText.style.color = 'red';
-        statusText.innerText = 'Desconhecido';
-        message.innerText = (condH3 ? condH3 : 'Status não identificado');
-    }
-
-    display.classList.remove('hidden');
+      const okKw = ['aguardo', 'pronto', 'ready', 'ok', 'waiting'];
+      const errKw = ['pausa', 'pause', 'paused', 'error', 'erro', 'aberto', 'open', 'falta papel'];
+      const anyOk = okKw.some(k => lower.includes(k));
+      const anyErr = errKw.some(k => lower.includes(k));
+      if (anyOk && !anyErr) setOk('Pronto para impressão', 'Tudo ok para imprimir');
+      else if (anyErr) setErr('Em Erro', condH3 || 'Condição de erro detectada');
+      else setErr('Desconhecido', condH3 || 'Status não identificado');
+      return result;
     }
 
     function base64ToUtf8(b64) {
-    if (!b64) return '';
-    try {
+      if (!b64) return '';
+      try {
         const binary = atob(b64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        if (typeof TextDecoder !== 'undefined') {
-        try { return new TextDecoder('utf-8').decode(bytes); } catch (e) {}
-        }
-        let out = '';
-        for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
-        return out;
-    } catch (e) { return b64; }
-    }
-
-    function logPanel(msg){
-    if (!panelLog) return;
-    try {
-        const ts = new Date().toLocaleTimeString();
-        const entry = document.createElement('div');
-        entry.textContent = `[${ts}] ${msg}`;
-        panelLog.prepend(entry);
-        const children = panelLog.children;
-        if (children.length > 50) {
-        panelLog.removeChild(children[children.length - 1]);
-        }
-    } catch(e){ console.warn('logPanel erro', e); }
+        return new TextDecoder('utf-8').decode(bytes);
+      } catch (e) { return b64; }
     }
 
     async function sendCommand(cmd, actionName) {
-    if (!currentPrinterIp) { showToast('IP inválido!'); logPanel(`${actionName}: IP inválido`); return; }
-    if (!cmd || cmd.trim() === '') { showToast('Comando vazio!'); logPanel(`${actionName}: comando vazio`); return; }
-
-    logPanel(`${actionName} -> enviando para ${currentPrinterIp} ...`);
-    try {
-        const payload = { ip: currentPrinterIp, cmd: cmd };
+      if (!currentPrinterIp) { showToast('IP inválido!', 'error'); return; }
+      if (!cmd || cmd.trim() === '') { showToast('Comando vazio!', 'error'); return; }
+      logPanel(`${actionName} -> ${currentPrinterIp}`);
+      try {
         const res = await fetch(API_BASE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: currentPrinterIp, cmd })
         });
-        const json = await res.json().catch(()=>({}));
+        const json = await res.json().catch(() => ({}));
         if (res.ok && json.success) {
-        showToast(`${actionName} enviado com sucesso!`);
-        logPanel(`${actionName}: enviado com sucesso.`);
+          showToast(`${actionName} enviado!`, 'success');
+          logPanel(`${actionName}: ok (${json.bytes_written} bytes)`, 'ok');
         } else {
-        const err = json.error || JSON.stringify(json);
-        showToast(`Erro: ${err}`);
-        logPanel(`${actionName}: erro -> ${err}`);
+          showToast('Erro: ' + (json.error || 'desconhecido'), 'error');
+          logPanel(`${actionName}: erro - ${json.error || ''}`, 'err');
         }
-    } catch (err) {
-        showToast(`Erro de conexão com API`);
-        logPanel(`${actionName}: erro de conexão (verifique o link).`);
-    }
+      } catch (err) {
+        showToast('Erro de conexão', 'error');
+        logPanel(`${actionName}: erro de conexão (${err.message})`, 'err');
+      }
     }
 
-    // Listeners Modal
-    checkStatusBtn.addEventListener('click', () => { checkStatus(currentPrinterIp); });
-    calibrateBtn.addEventListener('click', () => { sendCommand(CALIBRAGEM, 'Calibragem'); });
-    headTestBtn.addEventListener('click', () => { sendCommand(TESTE_CABECA, 'Teste de cabeça'); });
+    async function scanAllPrinters() {
+      const list = printerData.filter(p => p.floor === currentFloor);
+      const progress = $('scan-progress');
+      let done = 0;
+      progress.textContent = `0 / ${list.length}`;
+      const concurrency = 4;
+      let idx = 0;
+      async function worker() {
+        while (idx < list.length) {
+          const p = list[idx++];
+          await checkStatus(p.ip, false);
+          done++;
+          progress.textContent = `${done} / ${list.length}`;
+        }
+      }
+      const workers = Array.from({ length: concurrency }, worker);
+      await Promise.all(workers);
+      progress.textContent = `Concluído: ${list.length}`;
+      setTimeout(() => progress.textContent = '', 3500);
+    }
 
-    // Listeners Sidebar
-    if (btnLoadFactoryPanel) {
-    btnLoadFactoryPanel.addEventListener('click', () => {
-        if (!currentPrinterIp) { showToast('Selecione uma impressora'); return; }
-        if (!confirm('ATENÇÃO: Restaurar para padrão de fábrica?')) return;
+    // ============================================================
+    //  SIDEBAR
+    // ============================================================
+    function bindSidebar() {
+      $('collapse-panel').addEventListener('click', () => {
+        const aside = $('ip-tools-sidebar');
+        aside.classList.toggle('collapsed');
+        $('collapse-panel').textContent = aside.classList.contains('collapsed') ? '+' : '—';
+      });
+      $('set-ip-panel').addEventListener('click', () => {
+        const v = $('ip-input-panel').value.trim();
+        if (!v) { showToast('Digite o IP', 'error'); return; }
+        currentPrinterIp = v;
+        panelCurrentIp.textContent = v;
+        showToast('IP definido: ' + v);
+        logPanel('IP definido: ' + v);
+      });
+      $('btn-status-panel').addEventListener('click', () => {
+        if (!currentPrinterIp) return showToast('Defina o IP', 'error');
+        checkStatus(currentPrinterIp, false);
+      });
+      $('btn-ping-panel').addEventListener('click', async () => {
+        if (!currentPrinterIp) return showToast('Defina o IP', 'error');
+        logPanel(`Ping -> ${currentPrinterIp}`);
+        try {
+          const res = await fetch(`${API_BASE_URL}?action=ping&ip=${encodeURIComponent(currentPrinterIp)}`);
+          const d = await res.json();
+          logPanel(`Ping: 80=${d.web_80 ? 'OK' : 'X'} 9100=${d.raw_9100 ? 'OK' : 'X'} (${d.elapsed_ms}ms)`, d.ok ? 'ok' : 'err');
+        } catch (e) { logPanel('Ping erro: ' + e.message, 'err'); }
+      });
+      $('btn-info-panel').addEventListener('click', async () => {
+        if (!currentPrinterIp) return showToast('Defina o IP', 'error');
+        logPanel(`Info -> ${currentPrinterIp}...`);
+        try {
+          const res = await fetch(`${API_BASE_URL}?action=info&ip=${encodeURIComponent(currentPrinterIp)}`);
+          const d = await res.json();
+          for (const [k, v] of Object.entries(d.queries || {})) {
+            const r = (v.reply || '').replace(/[\x00-\x1f]+/g, ' ').trim().slice(0, 60);
+            if (r) logPanel(`${k}: ${r}`, 'ok');
+          }
+        } catch (e) { logPanel('Info erro: ' + e.message, 'err'); }
+      });
+      $('btn-calibrate-panel').addEventListener('click', () => sendCommand(CALIBRAGEM, 'Calibragem'));
+      $('btn-headtest-panel').addEventListener('click', () => sendCommand(TESTE_CABECA, 'Teste Cabeça'));
+      $('btn-load-factory-panel').addEventListener('click', () => {
+        if (!currentPrinterIp) return showToast('Selecione uma impressora', 'error');
+        if (!confirm('ATENÇÃO: Restaurar padrão de fábrica?')) return;
         sendCommand('^XA^JUF^XZ', 'Load Factory');
-    });
-    }
-
-    if (btnZT421Panel) {
-    btnZT421Panel.addEventListener('click', () => {
-        if (!currentPrinterIp) { showToast('Selecione uma impressora'); return; }
-        if (!confirm('Enviar layout ZT421?')) return;
-        sendCommand(`\x10CT~~CD,~CC^~CT~
-    ^XA~TA000~JSN^LT0^MNW^MTT^PON^PMN^LH0,0^JMA^PR3,3~SD20^JUS^LRN^CI0^XZ
-    ^XA
-    ^MMT
-    ^PW1866
-    ^LL0354
-    ^LS0
-    ^FO96,0^GFA,79872,79872,00208,:Z64:
-    eJzs2kEOgyAURVESFsbWXZI7sKYFpE06f9FzByToF3LmliJJkiRJ/2rHfeLJjic7nux4suPJjic7nux4suPJjic7nux4suPJjic7nux4suPJjic7nux4suPJjic7nuxu69mWHxLqUdpez4fn8rXtw315b8fINdzn9rqOtM9dY245YLz4PXT9Yt57HTqHZzw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PI/wvAAAAP//7NoxbtwwEEZhCixY6gg6Cq+VymLgg0W5iXIDlQQiaDI/NwsECOykCTRw3issyVTBD9LOujAePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw4MGDBw8ePHjw/OeeDxKe2OGJHZ7Y4YkdntjhiR2e2OGJHZ7Y4YkdntjhiR2e2OGJHZ7Y4YkdntjhiR2e2H1EDxERERH9dVP3H/lMaR2XNc3W07xPZldadv9NOXytpfTii9u4Smlpd233jw3PYmmyXZfr8NQ+PObMVM/H2osfjrRcuiuwJ8tTbSvjf3KTDY9d8kymza+WstYuP5y60v3txh2/X5FntV2MJM9iejjy5PHHvFkrvjZdqeiRWUuP9y9osxgmj16uaXjyw1O0eT/ZtJYvf3LybLq/3brn91q6FHYsw5Ofns/ydH8Ofr4tDik+HgZz0/3t5l2/XZXnmo/lmz4sZXgc4p5zPnyg5XPZtTZr3Nl0aeblwB59bKaz9Pr16dFQdsjU593Psx/qZqm6Z1tfT3nmuJ4sTz5zr02e2TS7HpBjHMrhurb6yPOvn/rqOo3DdvO236wMT8+9DM/y9PjK/tOT5dHsrq22T/KsgT3f9b51fQv94tnSb57L37c2rO750v7lnn4AAAD//+2cQYrcMBBFZRTQ0hcI6CjOsbIYRh5mkWNFuxwjDnMBhWwE0dipXyVpegLJJoGRoD4NDXYv9Cyp6lcJ97983A9OO41nC51njY0n18WHwrcrz7j51D01ngXx+p6G/hkhgaYqYuN0nlx5cO9+YJ5H5iGbycbnLtDmiP7LAY/G+afxHOx9xOp8HJfnnW08bBQKeA7/tWDg7HccshHxmMqDUPBhXB6ZFrMmLg6WDJ4EP0CVA/trKzw781ywcWZoPyo8BIONsSTwZI+JobkIiOWn7zwEw7tsfB7yAzBylnmKhxFFvXPy232dx5Zq3YbnCcRTkHPICHwCT+R652Kv2nkceKKZgAdP/UTOCeZcCq2waIrh+GZueBAykH+G51lQuAXheQ8P7SNtFBhRuvzceXySdsLwPLYGY7+jKwKeg3kQI7afnWc7JuFx3PjYKUYLD1mdJRt80Zw9dR5ahbXfsL/hiP8uHt9aH/rGbyozj208xnaey0zCw422P/KkysO5dAoepJ/Gc2dOWGubXnhQzyF+U7hOU/BQXA6V53sRHtd4sms8LrM7NRPwACkID+Wf9XjhsTc8id2pGZ8HsRhjxnq7luISih+DsE2LTPoh9JtKZ4bngafZvnEnl/2Oyxt4VsIynF3Ry+L+2+PpJ+HhGgE8gfuJ0R1kbyjhLLWfKDwPF7ftB+exr3nwTx07LS7u95ra7yWebSYe6V8jzF04/OHNctuPF579msFf00RkJ+cLgVZVRPOQeH4/LwnEE2aof8DTz7McjXgr0pe6Pc8SHj9DvQ2eeqYT2NUQDHhenTcKj5Nydn+r4apUKpVKpVKpVCqVSqVSqVQqlUqlUqlUKpVKpVKpVKr/q1/INjdd:B590
-    ^FT1735,339^A0N,50,50^FH\\^FDF^FS
-    ^FT95,339^A0N,50,45^FH\\^FDI^FS
-    ^PQ1,0,1,Y^XZ`, 'ZT421');
-    });
-    }
-
-    if (btnRestartPanel) {
-    btnRestartPanel.addEventListener('click', () => {
-        if (!currentPrinterIp) { showToast('Selecione uma impressora'); return; }
-        if (!confirm('Deseja reiniciar a impressora?')) return;
+      });
+      $('btn-restart-panel').addEventListener('click', () => {
+        if (!currentPrinterIp) return showToast('Selecione uma impressora', 'error');
+        if (!confirm('Reiniciar a impressora?')) return;
         sendCommand('~JR', 'Reiniciar');
-    });
+      });
+      $('btn-zt421-panel').addEventListener('click', async () => {
+        if (!currentPrinterIp) return showToast('Selecione uma impressora', 'error');
+        if (!confirm('Enviar layout ZT421?\n(arquivo: ZT421.prn)')) return;
+        try {
+          const cmd = await loadZT421Cmd();
+          logPanel(`ZT421.prn carregado: ${cmd.length} bytes`, 'ok');
+          sendCommand(cmd, 'ZT421');
+        } catch (e) {
+          showToast('Erro: ' + e.message, 'error');
+          logPanel('ZT421: ' + e.message, 'err');
+        }
+      });
+      $('btn-send-raw-panel').addEventListener('click', () => {
+        const cmd = $('panel-rawcmd').value.trim();
+        if (!cmd) return showToast('Comando vazio', 'error');
+        sendCommand(cmd, 'Comando Manual');
+      });
+      $('btn-log-copy')?.addEventListener('click', copyLog);
+      $('btn-log-clear')?.addEventListener('click', () => {
+        DEBUG_LOG.length = 0;
+        if (panelLog) panelLog.innerHTML = '';
+        showToast('Log limpo');
+      });
     }
 
-    setIpPanelBtn.addEventListener('click', () => {
-    const v = ipInputPanel.value.trim();
-    if (!v) { showToast('Digite o IP'); return; }
-    currentPrinterIp = v;
-    panelCurrentIp.textContent = currentPrinterIp;
-    const modalIp = document.getElementById('modal-ip');
-    if (modalIp) modalIp.textContent = currentPrinterIp;
-    showToast('IP definido: ' + currentPrinterIp);
-    logPanel('IP definido: ' + currentPrinterIp);
-    });
+    // ============================================================
+    //  SEARCH
+    // ============================================================
+    function debounce(fn, delay) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); }; }
 
-    btnStatusPanel.addEventListener('click', () => {
-    if (!currentPrinterIp) { showToast('Defina o IP'); logPanel('Status: IP indefinido'); return; }
-    checkStatus(currentPrinterIp);
-    });
+    function bindSearch() {
+      searchHitbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (searchInput.value.trim()) { searchInput.value = ''; handleSearch(); }
+        searchContainer.classList.toggle('expanded');
+        if (searchContainer.classList.contains('expanded')) searchInput.focus();
+        else searchResultsPanel.style.display = 'none';
+      });
+      document.addEventListener('click', (e) => {
+        if (!searchContainer.contains(e.target)) {
+          searchContainer.classList.remove('expanded');
+          searchResultsPanel.style.display = 'none';
+        }
+      });
+      searchForm.addEventListener('submit', (e) => { e.preventDefault(); handleSearch(); });
+      searchInput.addEventListener('input', debounce(handleSearch, 160));
 
-    btnCalibratePanel.addEventListener('click', () => { sendCommand(CALIBRAGEM, 'Calibragem'); });
-    btnHeadTestPanel.addEventListener('click', () => { sendCommand(TESTE_CABECA, 'Teste Cabeça'); });
-
-    collapsePanelBtn.addEventListener('click', () => {
-    const aside = document.getElementById('ip-tools-sidebar');
-    if (!aside) return;
-    aside.classList.toggle('collapsed');
-    if (aside.classList.contains('collapsed')) {
-        collapsePanelBtn.textContent = '+';
-    } else {
-        collapsePanelBtn.textContent = '—';
-    }
-    });
-
-    // Busca
-    searchHitbox.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (searchInput.value.trim()) { searchInput.value = ''; handleSearch(); }
-    searchContainer.classList.toggle('expanded');
-    searchContainer.setAttribute('aria-expanded', String(searchContainer.classList.contains('expanded')));
-    if (searchContainer.classList.contains('expanded')) { searchInput.focus(); } else { searchResultsPanel.style.display = 'none'; }
-    });
-
-    document.addEventListener('click', (e)=>{ 
-        if (!searchContainer.contains(e.target)) { 
-            searchContainer.classList.remove('expanded'); 
-            searchResultsPanel.style.display='none';
-            searchContainer.setAttribute('aria-expanded','false');
-        } 
-    });
-
-    searchForm.addEventListener('submit', (e) => { e.preventDefault(); handleSearch(); });
-    const debouncedHandleSearch = debounce(handleSearch, 160);
-    searchInput.addEventListener('input', debouncedHandleSearch);
-
-    function focusResultByIndex(index) {
-    const items = Array.from(searchResultsPanel.querySelectorAll('.result-item'));
-    if (!items.length) return;
-    index = Math.max(0, Math.min(items.length - 1, index));
-    items[index].focus();
+      $('list-search')?.addEventListener('input', debounce(renderList, 150));
+      $('list-filter-status')?.addEventListener('change', renderList);
     }
 
     function handleSearch() {
-    const term = searchInput.value.toLowerCase().trim();
-    document.querySelectorAll('.printer-point').forEach(p=>p.classList.remove('highlighted'));
-    if (!term) { searchResultsPanel.style.display = 'none'; searchResultsPanel.setAttribute('aria-hidden','true'); return; }
-    const results = printerData.filter(p => (p.name.toLowerCase().includes(term) || (p.selb || '').toLowerCase().includes(term)));
-    searchResultsPanel.innerHTML = '';
-    searchResultsPanel.setAttribute('aria-hidden','false');
-    if (!results.length) {
+      const term = searchInput.value.toLowerCase().trim();
+      document.querySelectorAll('.printer-point').forEach(p => p.classList.remove('highlighted'));
+      if (!term) { searchResultsPanel.style.display = 'none'; return; }
+      const results = printerData.filter(p =>
+        (p.name || '').toLowerCase().includes(term) ||
+        (p.selb || '').toLowerCase().includes(term) ||
+        (p.ip || '').toLowerCase().includes(term)
+      );
+      searchResultsPanel.innerHTML = '';
+      if (!results.length) {
         searchResultsPanel.innerHTML = '<div class="p-3 text-center text-gray-500">Nenhum resultado.</div>';
-    } else {
-        results.forEach((r, idx) => {
-            const d = document.createElement('div');
-            d.className = 'result-item p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50';
-            d.innerHTML = `<div class="font-semibold">${r.name}</div><div class="text-sm text-gray-500">SELB: ${r.selb} (Andar ${r.floor})</div>`;
-            d.tabIndex = 0;
-            d.setAttribute('role','option');
-            d.addEventListener('click', (ev) => {
-                ev.stopPropagation();
-                searchResultsPanel.style.display = 'none';
-                searchContainer.classList.remove('expanded');
-                searchInput.value = r.name;
-                if (r.floor !== currentFloor) {
-                    currentFloor = r.floor; floorSelect.value = currentFloor; updateMapImage();
-                    renderAllPrinters();
-                }
-                focusPrinter(r, true);
-            });
-            searchResultsPanel.appendChild(d);
+      } else {
+        results.forEach(r => {
+          const d = document.createElement('div');
+          d.className = 'result-item p-3 border-b border-gray-100 cursor-pointer';
+          d.innerHTML = `<div class="font-semibold">${escapeHtml(r.name)}</div><div class="text-sm text-gray-500">${escapeHtml(r.selb)} - ${escapeHtml(r.ip)} (Andar ${r.floor})</div>`;
+          d.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            searchResultsPanel.style.display = 'none';
+            searchContainer.classList.remove('expanded');
+            searchInput.value = r.name;
+            if (r.floor !== currentFloor) { currentFloor = r.floor; floorSelect.value = currentFloor; updateMapImage(); renderAllPrinters(); }
+            focusPrinter(r, true);
+          });
+          searchResultsPanel.appendChild(d);
         });
-    }
-    searchResultsPanel.style.display = 'block';
+      }
+      searchResultsPanel.style.display = 'block';
     }
 
     function focusPrinter(printer, openModal = false) {
-    if (focusResetTimer) clearTimeout(focusResetTimer);
-    if (transientLabel) transientLabel.remove();
-    document.querySelectorAll('.printer-point').forEach(p => p.classList.remove('highlighted'));
-    const point = document.querySelector(`.printer-point[data-printer-selb="${printer.selb}"]`);
-    if (!point) return;
+      if (focusResetTimer) clearTimeout(focusResetTimer);
+      if (transientLabel) transientLabel.remove();
+      document.querySelectorAll('.printer-point').forEach(p => p.classList.remove('highlighted'));
+      const point = document.querySelector(`.printer-point[data-printer-selb="${CSS.escape(printer.selb)}"]`);
+      if (!point) return;
+      point.classList.add('highlighted');
 
-    point.classList.add('highlighted');
+      const pRect = point.getBoundingClientRect();
+      const mapRect = mapContainer.getBoundingClientRect();
+      const pCenterX = (pRect.left - mapRect.left) + pRect.width / 2;
+      const pCenterY = (pRect.top - mapRect.top) + pRect.height / 2;
+      const scale = 1.4;
+      let dx = mapRect.width / 2 - pCenterX * scale;
+      let dy = mapRect.height / 2 - pCenterY * scale;
+      const scaledW = mapRect.width * scale, scaledH = mapRect.height * scale;
+      dx = Math.min(0, Math.max(mapRect.width - scaledW, dx));
+      dy = Math.min(0, Math.max(mapRect.height - scaledH, dy));
+      mapInner.style.transform = `scale(${scale}) translate(${dx}px, ${dy}px)`;
 
-    const pRect = point.getBoundingClientRect();
-    const mapRect = mapContainer.getBoundingClientRect();
+      const containerRectAfter = mapContainer.getBoundingClientRect();
+      const scrollLeft = window.scrollX + containerRectAfter.left - (window.innerWidth - containerRectAfter.width) / 2;
+      const scrollTop = window.scrollY + containerRectAfter.top - (window.innerHeight - containerRectAfter.height) / 2;
+      window.scrollTo({ left: scrollLeft, top: scrollTop, behavior: 'smooth' });
 
-    const pCenterX = (pRect.left - mapRect.left) + pRect.width / 2;
-    const pCenterY = (pRect.top - mapRect.top) + pRect.height / 2;
+      transientLabel = document.createElement('div');
+      transientLabel.className = 'focus-label';
+      transientLabel.innerHTML = `${escapeHtml(printer.name)} <span class="font-normal text-xs text-gray-500 ml-2">(${escapeHtml(printer.selb)})</span>`;
+      transientLabel.style.left = '50%';
+      transientLabel.style.top = '50%';
+      transientLabel.style.transform = 'translate(-50%, calc(-100% - 20px))';
+      mapContainer.appendChild(transientLabel);
 
-    const scale = 1.4;
-    let dx = mapRect.width / 2 - pCenterX * scale;
-    let dy = mapRect.height / 2 - pCenterY * scale;
-
-    const scaledWidth = mapRect.width * scale;
-    const scaledHeight = mapRect.height * scale;
-    const maxDx = 0; const minDx = mapRect.width - scaledWidth;
-    const maxDy = 0; const minDy = mapRect.height - scaledHeight;
-    dx = Math.min(maxDx, Math.max(minDx, dx));
-    dy = Math.min(maxDy, Math.max(minDy, dy));
-
-    mapInner.style.transform = `scale(${scale}) translate(${dx}px, ${dy}px)`;
-
-    const containerRectAfter = mapContainer.getBoundingClientRect();
-    const scrollLeft = window.scrollX + containerRectAfter.left - (window.innerWidth - containerRectAfter.width) / 2;
-    const scrollTop = window.scrollY + containerRectAfter.top - (window.innerHeight - containerRectAfter.height) / 2;
-    window.scrollTo({ left: scrollLeft, top: scrollTop, behavior: 'smooth' });
-
-    transientLabel = document.createElement('div');
-    transientLabel.className = 'focus-label';
-    transientLabel.innerHTML = `${printer.name} <span class="font-normal text-xs text-gray-500 ml-2">(${printer.selb})</span>`;
-    transientLabel.style.left = `50%`;
-    transientLabel.style.top = `50%`;
-    transientLabel.style.transform = `translate(-50%, calc(-100% - 20px))`;
-    mapContainer.appendChild(transientLabel);
-
-    focusResetTimer = setTimeout(() => {
+      focusResetTimer = setTimeout(() => {
         mapInner.style.transform = '';
         point.classList.remove('highlighted');
         if (transientLabel) { transientLabel.remove(); transientLabel = null; }
-    }, 3500);
+      }, 3500);
 
-    if (openModal) {
-        setTimeout(() => {
-            const current = printerData.find(p => p.selb === printer.selb);
-            if (current) { showDetailsModal(current); }
-        }, 500);
-    }
+      if (openModal) setTimeout(() => showDetailsModal(printer), 500);
     }
 
-    document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-    backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) {
-        detailsModal.classList.add('hidden'); detailsModal.setAttribute('aria-hidden','true');
-        }
-    });
-    });
-
-    document.querySelectorAll('.close-modal-btn').forEach(b => b.addEventListener('click', () => {
-    detailsModal.classList.add('hidden'); detailsModal.setAttribute('aria-hidden','true');
-    }));
-
-    floorSelect.addEventListener('change', (e) => {
-    currentFloor = parseInt(e.target.value, 10);
-    updateMapImage();
-    renderAllPrinters();
-    });
-    
-    document.addEventListener('keydown', (e) => {
-        if (e.key === "Escape") {
-            detailsModal.classList.add('hidden'); detailsModal.setAttribute('aria-hidden','true');
-            searchResultsPanel.style.display = 'none';
-            if (searchContainer.classList.contains('expanded')) {
-                searchContainer.classList.remove('expanded'); searchInput.value = '';
-            }
-        }
-    });
-
-    if (btnSendRawPanel) {
-    btnSendRawPanel.addEventListener('click', () => {
-        const cmd = rawCmdPanel.value.trim();
-        if (!cmd) { showToast('Comando vazio'); return; }
-        sendCommand(cmd, 'Comando Manual');
-    });
-    }
-
-    loadPrinters();
-    updateMapImage();
-
-    // --- FUNCIONALIDADE DE ACESSO A WEB INTERFACE ---
-    const browserModal = document.getElementById('browser-modal');
-    const browserFrame = document.getElementById('internal-frame');
-    const browserUrlBar = document.getElementById('browser-url');
-    const browserSpinner = document.getElementById('browser-spinner');
+    // ============================================================
+    //  BROWSER INTERNO (com cookies via proxy)
+    // ============================================================
+    const browserModal = $('browser-modal');
+    const browserFrame = $('internal-frame');
+    const browserUrlBar = $('browser-url');
+    const browserSpinner = $('browser-spinner');
     let currentBrowserUrl = '';
+    const browserHistory = [];
 
-    window.openBrowser = (ip) => {
-        browserFrame.src = 'about:blank';
-        browserModal.classList.remove('hidden');
-        loadPage(`http://${ip}/`);
-    };
-
-    // Escuta mensagens do Iframe (Navegação e Submissão)
-    window.addEventListener('message', (event) => {
-        if (event.data.type === 'navigate') {
-            loadPage(event.data.url);
-        } else if (event.data.type === 'submit') {
-            loadPage(event.data.url, event.data.method, event.data.data);
+    function bindBrowser() {
+      document.querySelector('.close-browser').addEventListener('click', () => {
+        browserModal.classList.add('hidden');
+        browserFrame.removeAttribute('src');
+        browserFrame.srcdoc = '';
+        browserHistory.length = 0;
+      });
+      $('browser-refresh').addEventListener('click', () => { if (currentBrowserUrl) loadPage(currentBrowserUrl); });
+      $('browser-home').addEventListener('click', () => { if (currentPrinterIp) loadPage(`http://${currentPrinterIp}/`); });
+      $('browser-back').addEventListener('click', () => {
+        if (browserHistory.length > 1) {
+          browserHistory.pop(); // current
+          const prev = browserHistory.pop();
+          if (prev) loadPage(prev);
         }
-    });
+      });
+      $('browser-newtab').addEventListener('click', () => {
+        if (currentBrowserUrl) window.open(currentBrowserUrl, '_blank', 'noopener');
+      });
+
+      window.addEventListener('message', (event) => {
+        if (!event.data || typeof event.data !== 'object') return;
+        if (event.data.type === 'navigate') loadPage(event.data.url);
+        else if (event.data.type === 'submit') loadPage(event.data.url, event.data.method, event.data.data);
+        else if (event.data.type === 'mapanto-copy-log') copyLog();
+        else if (event.data.type === 'mapanto-retry') {
+          if (currentBrowserUrl) loadPage(currentBrowserUrl);
+        }
+      });
+    }
+
+    function writeToFrame(html) {
+      // srcdoc é atômico — não tem race condition com about:blank
+      try {
+        browserFrame.removeAttribute('src');
+        browserFrame.srcdoc = html;
+        debugLog('info', `writeToFrame: srcdoc setado (${html.length} chars)`);
+      } catch (e) {
+        debugLog('err', 'writeToFrame falhou (srcdoc): ' + e.message);
+        // Fallback para document.write
+        try {
+          const fd = browserFrame.contentDocument || browserFrame.contentWindow.document;
+          fd.open(); fd.write(html); fd.close();
+          debugLog('info', 'writeToFrame: fallback document.write OK');
+        } catch (e2) {
+          debugLog('err', 'writeToFrame fallback também falhou: ' + e2.message);
+        }
+      }
+    }
+
+    function frameLoading(url) {
+      writeToFrame(`<!doctype html><html><head><meta charset="utf-8"><title>Carregando...</title>
+<style>body{margin:0;font-family:system-ui,sans-serif;background:#f8fafc;color:#475569;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px}
+.spin{width:42px;height:42px;border:4px solid #e2e8f0;border-top-color:#E07A5F;border-radius:50%;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}.url{font-family:monospace;font-size:12px;color:#94a3b8;max-width:80%;text-align:center;word-break:break-all}</style>
+</head><body><div class="spin"></div><div>Carregando página da impressora...</div><div class="url">${escapeHtml(url)}</div></body></html>`);
+    }
+
+    function frameError(url, msg) {
+      writeToFrame(`<!doctype html><html><head><meta charset="utf-8"><title>Erro</title>
+<style>body{margin:0;font-family:system-ui,sans-serif;background:#f8fafc;color:#1f2937;padding:24px;line-height:1.5}
+.card{max-width:620px;margin:24px auto;background:white;border-radius:14px;border:1px solid #fecaca;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.06)}
+h2{color:#dc2626;margin-top:0;font-size:1.2rem}
+.url{font-family:monospace;font-size:12px;color:#64748b;background:#f1f5f9;padding:8px 12px;border-radius:8px;margin-top:12px;word-break:break-all}
+.tips{margin-top:14px;font-size:13px;color:#64748b}
+.tips ul{margin:6px 0 0 16px;padding:0}.tips li{margin:4px 0}
+.actions{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+button{background:#E07A5F;color:white;border:none;padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px}
+button:hover{background:#c96650}
+button.ghost{background:#f1f5f9;color:#475569}
+button.ghost:hover{background:#e2e8f0}</style>
+</head><body><div class="card">
+<h2>Não foi possível abrir a página</h2>
+<div><strong>Erro:</strong> ${escapeHtml(msg)}</div>
+<div class="url">URL: ${escapeHtml(url)}</div>
+<div class="tips"><strong>Possíveis causas:</strong>
+<ul><li>Túnel Cloudflare desativado no PC da empresa</li>
+<li>Impressora desligada ou fora da rede</li>
+<li>Link da API incorreto (sidebar)</li>
+<li>Página da impressora requer autenticação não suportada</li></ul></div>
+<div class="actions">
+  <button onclick="window.parent.postMessage({type:'mapanto-copy-log'}, '*')">📋 Copiar log completo</button>
+  <button class="ghost" onclick="window.parent.postMessage({type:'mapanto-retry'}, '*')">↻ Tentar de novo</button>
+</div>
+</div></body></html>`);
+    }
+
+    function openBrowser(ip) {
+      browserHistory.length = 0;
+      browserModal.classList.remove('hidden');
+      // srcdoc é atômico — pode chamar loadPage direto, sem race
+      loadPage(`http://${ip}/`);
+    }
 
     async function loadPage(url, method = 'GET', formData = null) {
-        browserSpinner.classList.remove('hidden');
-        browserUrlBar.textContent = url;
-        currentBrowserUrl = url;
+      const t0 = performance.now();
+      debugLog('info', `loadPage: ${method} ${url}`, { formData });
+      browserSpinner.classList.remove('hidden');
+      browserUrlBar.textContent = url;
+      currentBrowserUrl = url;
+      frameLoading(url);
 
-        let fetchOptions = {};
-        let proxyUrl = `${API_BASE_URL}?url=${encodeURIComponent(url)}&as_json=1`;
-
-        // Tratamento Especial para Formulários GET (ex: Botão Imprimir)
-        // Se for GET com dados, transformamos em Query String na URL
+      let proxyUrl, fetchOptions;
+      if (method === 'POST') {
+        proxyUrl = API_BASE_URL;
+        fetchOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, method: 'POST', form_data: formData || {} })
+        };
+      } else {
+        let finalUrl = url;
         if (method === 'GET' && formData) {
-             // URLSearchParams cria a string ?key=val&key2=val2
-             const params = new URLSearchParams(formData).toString();
-             // Verifica se a URL já tem ? ou não
-             const separator = url.includes('?') ? '&' : '?';
-             const finalUrl = `${url}${separator}${params}`;
-             
-             // Atualiza a URL que vamos chamar
-             proxyUrl = `${API_BASE_URL}?url=${encodeURIComponent(finalUrl)}&as_json=1`;
-             
-             // Atualiza visualmente para o usuário ver
-             browserUrlBar.textContent = finalUrl;
-             currentBrowserUrl = finalUrl;
+          const params = new URLSearchParams(formData).toString();
+          const sep = url.includes('?') ? '&' : '?';
+          finalUrl = `${url}${sep}${params}`;
+          browserUrlBar.textContent = finalUrl;
+          currentBrowserUrl = finalUrl;
         }
-        
-        // Tratamento para POST (Login / Senhas)
-        else if (method === 'POST') {
-            fetchOptions = {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url, form_data: formData, as_json: 1 })
-            };
-            proxyUrl = API_BASE_URL;
+        proxyUrl = `${API_BASE_URL}?url=${encodeURIComponent(finalUrl)}&as_json=1`;
+        fetchOptions = {};
+      }
+      debugLog('info', `loadPage -> proxy: ${proxyUrl.slice(0, 200)}`);
+
+      try {
+        const res = await fetch(proxyUrl, { cache: 'no-store', ...fetchOptions });
+        const elapsed = Math.round(performance.now() - t0);
+        debugLog('info', `loadPage proxy resposta: HTTP ${res.status} (${elapsed}ms)`, { status: res.status, type: res.headers.get('content-type') });
+        const text = await res.text();
+        if (!text || !text.trim()) {
+          throw new Error(`Proxy retornou corpo vazio (HTTP ${res.status}). Provável timeout do Cloudflare Tunnel ou impressora inacessível.`);
         }
-
-        try {
-            const res = await fetch(proxyUrl, fetchOptions);
-            const data = await res.json();
-
-            if (data.effective_url) {
-                currentBrowserUrl = data.effective_url;
-                browserUrlBar.textContent = currentBrowserUrl;
-            }
-
-            const htmlContent = atob(data.body_base64);
-            
-            // Script injetado para capturar interações
-            const injectionScript = `
-                <base href="${currentBrowserUrl}">
-                <script>
-                    document.addEventListener('click', e => {
-                        const link = e.target.closest('a');
-                        if (link && link.href && !link.href.startsWith('javascript:') && !link.href.startsWith('#')) {
-                            e.preventDefault();
-                            window.parent.postMessage({type: 'navigate', url: link.href}, '*');
-                        }
-                    });
-
-                    document.addEventListener('submit', e => {
-                        e.preventDefault();
-                        const form = e.target;
-                        
-                        // Captura o botão que enviou o form (importante para value="Imprimir")
-                        const submitter = e.submitter;
-                        const formData = new FormData(form);
-                        
-                        if(submitter && submitter.name) {
-                            formData.append(submitter.name, submitter.value);
-                        }
-
-                        const data = {};
-                        formData.forEach((value, key) => data[key] = value);
-                        
-                        // Detecta se o form é GET ou POST
-                        const method = (form.getAttribute('method') || 'GET').toUpperCase();
-
-                        window.parent.postMessage({
-                            type: 'submit', 
-                            url: form.action, 
-                            method: method, 
-                            data: data
-                        }, '*');
-                    });
-                <\/script>
-            `;
-
-            const finalHtml = injectionScript + htmlContent;
-
-            // Reescreve recursos estáticos para o Proxy
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(finalHtml, 'text/html');
-            doc.querySelectorAll('img, link[rel="stylesheet"]').forEach(el => {
-                const attr = el.tagName === 'LINK' ? 'href' : 'src';
-                const val = el.getAttribute(attr);
-                if(val && !val.startsWith('data:')) {
-                    const absUrl = new URL(val, currentBrowserUrl).href;
-                    el.setAttribute(attr, `${API_BASE_URL}?url=${encodeURIComponent(absUrl)}`);
-                }
-            });
-
-            const frameDoc = browserFrame.contentDocument || browserFrame.contentWindow.document;
-            frameDoc.open();
-            frameDoc.write(doc.documentElement.outerHTML);
-            frameDoc.close();
-
-        } catch (e) {
-            const frameDoc = browserFrame.contentDocument || browserFrame.contentWindow.document;
-            frameDoc.body.innerHTML = `<h2 style="color:red;padding:20px">Erro: ${e.message}</h2>`;
-        } finally {
-            browserSpinner.classList.add('hidden');
+        let data;
+        try { data = JSON.parse(text); }
+        catch (e) {
+          debugLog('err', 'loadPage: resposta não-JSON', { sample: text.slice(0, 300) });
+          throw new Error(`Resposta não-JSON do proxy. Início: "${text.slice(0, 120).replace(/\s+/g, ' ')}"`);
         }
+        debugLog('info', `loadPage: JSON parseado`, { effective_url: data.effective_url, http_status: data.http_status, hasBody: !!data.body_base64, bodyLen: data.body_base64?.length, error: data.error });
+
+        if (data.effective_url) {
+          currentBrowserUrl = data.effective_url;
+          browserUrlBar.textContent = currentBrowserUrl;
+        }
+        browserHistory.push(currentBrowserUrl);
+        if (browserHistory.length > 50) browserHistory.shift();
+
+        if (!data.body_base64) {
+          throw new Error(data.error || `Resposta vazia da impressora (HTTP remoto ${data.http_status || '?'}). Verifique conexão e IP.`);
+        }
+        const htmlContent = base64ToUtf8(data.body_base64);
+
+        // Injetar script de captura de navegação
+        const injectionScript = `
+<base href="${currentBrowserUrl.replace(/"/g, '&quot;')}">
+<script>
+  (function() {
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a');
+      if (link && link.href && !link.href.startsWith('javascript:') && link.getAttribute('href') !== '#') {
+        e.preventDefault();
+        window.parent.postMessage({type:'navigate', url: link.href}, '*');
+      }
+    }, true);
+    document.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var form = e.target;
+      var submitter = e.submitter;
+      var fd = new FormData(form);
+      if (submitter && submitter.name) fd.append(submitter.name, submitter.value);
+      var data = {};
+      fd.forEach(function(v, k) { data[k] = v; });
+      var method = (form.getAttribute('method') || 'GET').toUpperCase();
+      var action = form.action || window.location.href;
+      window.parent.postMessage({type:'submit', url: action, method: method, data: data}, '*');
+    }, true);
+  })();
+<\/script>
+`;
+
+        // Reescrever recursos (img, css) para o proxy
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(injectionScript + htmlContent, 'text/html');
+        doc.querySelectorAll('img, link[rel="stylesheet"], script[src]').forEach(el => {
+          const attr = (el.tagName === 'LINK') ? 'href' : 'src';
+          const val = el.getAttribute(attr);
+          if (val && !val.startsWith('data:') && !val.startsWith('javascript:')) {
+            try {
+              const absUrl = new URL(val, currentBrowserUrl).href;
+              el.setAttribute(attr, `${API_BASE_URL}?url=${encodeURIComponent(absUrl)}`);
+            } catch (e) { /* ignore bad url */ }
+          }
+        });
+
+        const finalHtml = doc.documentElement.outerHTML;
+        debugLog('ok', `loadPage: HTML pronto (${finalHtml.length} chars), escrevendo no iframe`);
+        writeToFrame(finalHtml);
+        debugLog('ok', `loadPage: concluído em ${Math.round(performance.now() - t0)}ms`);
+
+      } catch (e) {
+        debugLog('err', 'loadPage falhou: ' + e.message, { url, stack: e.stack?.slice(0, 500) });
+        frameError(url, e.message);
+      } finally {
+        browserSpinner.classList.add('hidden');
+      }
     }
 
-    document.querySelector('.close-browser').onclick = () => {
-        document.getElementById('browser-modal').classList.add('hidden');
-        document.getElementById('internal-frame').src = "about:blank";
-    };
-    document.getElementById('browser-refresh').onclick = () => loadPage(currentBrowserUrl);
+    // ============================================================
+    //  UTILS
+    // ============================================================
+    function showToast(msg, kind) {
+      toastEl.textContent = msg;
+      toastEl.classList.remove('success', 'error');
+      if (kind === 'success') toastEl.classList.add('success');
+      if (kind === 'error') toastEl.classList.add('error');
+      toastEl.classList.add('show');
+      setTimeout(() => toastEl.classList.remove('show'), 3000);
+    }
 
-    document.getElementById('modal-web-btn').onclick = () => {
-        if(currentPrinterIp) {
-            window.openBrowser(currentPrinterIp);
-        } else {
-            showToast("Erro: Selecione uma impressora");
+    // ========== DEBUG LOG (estruturado, capturável) ==========
+    const DEBUG_LOG = []; // {ts, level, msg, data?}
+    function debugLog(level, msg, data) {
+      const entry = { ts: new Date().toISOString(), level, msg, data };
+      DEBUG_LOG.push(entry);
+      if (DEBUG_LOG.length > 500) DEBUG_LOG.shift();
+      // Também emite para console
+      const consoleFn = level === 'err' ? 'error' : (level === 'warn' ? 'warn' : 'log');
+      if (data !== undefined) console[consoleFn]('[MapaNto]', msg, data);
+      else console[consoleFn]('[MapaNto]', msg);
+      // Renderiza
+      if (panelLog) {
+        const div = document.createElement('div');
+        const t = new Date(entry.ts).toLocaleTimeString();
+        const icon = level === 'err' ? '✖' : level === 'ok' ? '✓' : level === 'warn' ? '⚠' : '·';
+        div.textContent = `${icon} [${t}] ${msg}`;
+        if (level === 'err') div.classList.add('log-err');
+        if (level === 'ok')  div.classList.add('log-ok');
+        if (level === 'warn') div.style.color = '#fcd34d';
+        panelLog.prepend(div);
+        while (panelLog.children.length > 80) panelLog.removeChild(panelLog.lastChild);
+      }
+    }
+    // Compat: logPanel(msg, 'ok'|'err') -> debugLog
+    function logPanel(msg, kind) {
+      const level = kind === 'ok' ? 'ok' : kind === 'err' ? 'err' : 'info';
+      debugLog(level, msg);
+    }
+
+    function buildLogReport() {
+      const lines = [];
+      lines.push('=== MapaNto Debug Report ===');
+      lines.push('Gerado: ' + new Date().toISOString());
+      lines.push('User: ' + (auth?.currentUser?.email || '(sem login)'));
+      lines.push('API_BASE_URL: ' + API_BASE_URL);
+      lines.push('UA: ' + navigator.userAgent);
+      lines.push('Page URL: ' + location.href);
+      lines.push('Impressora atual: ' + (currentPrinterIp || '(nenhuma)') + ' / SELB: ' + (currentPrinterSelb || '-'));
+      lines.push('Total impressoras no Firestore: ' + (printerData?.length ?? 0));
+      lines.push('--- Log ---');
+      DEBUG_LOG.forEach(e => {
+        const t = new Date(e.ts).toLocaleTimeString();
+        let line = `[${t}] [${e.level.toUpperCase()}] ${e.msg}`;
+        if (e.data !== undefined) {
+          try { line += ' | ' + JSON.stringify(e.data).slice(0, 1000); }
+          catch { line += ' | (data não serializável)'; }
         }
-    };
+        lines.push(line);
+      });
+      return lines.join('\n');
+    }
 
+    async function copyLog() {
+      const report = buildLogReport();
+      try {
+        await navigator.clipboard.writeText(report);
+        showToast('Log copiado! Cole no chat pra suporte.', 'success');
+      } catch (e) {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = report; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('Log copiado!', 'success');
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // ========== Captura erros globais para o log ==========
+    window.addEventListener('error', (ev) => {
+      debugLog('err', 'window.error: ' + (ev.message || ev.error?.message || 'unknown'), {
+        source: ev.filename, line: ev.lineno, col: ev.colno, stack: ev.error?.stack?.slice(0, 400)
+      });
     });
-</script>
-<footer style="text-align:center; padding:10px; font-size:14px;">
-    <a href="https://www.siterastreio.com.br/" target="_blank" rel="noopener">
-        Rastreamento
-    </a>
-</footer>
+    window.addEventListener('unhandledrejection', (ev) => {
+      debugLog('err', 'unhandledrejection: ' + (ev.reason?.message || String(ev.reason)), {
+        stack: ev.reason?.stack?.slice(0, 400)
+      });
+    });
+    debugLog('info', 'App carregado. ' + new Date().toLocaleString());
+
+    // expose for debug
+    window.MapaNto = { printerData, statusCache, checkStatus, openBrowser, DEBUG_LOG, buildLogReport, copyLog };
+  </script>
+
+  <footer class="text-center py-4 text-xs text-gray-500" style="display:block;">
+    <a href="https://www.siterastreio.com.br/" target="_blank" rel="noopener" class="hover:underline">Rastreamento</a>
+  </footer>
 
 </body>
 </html>
