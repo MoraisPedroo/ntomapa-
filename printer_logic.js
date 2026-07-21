@@ -8,6 +8,7 @@ export const STATE_LABELS = {
     MEDIA_OUT:  'Alerta: sem etiqueta',
     HEAD_OPEN:  'Cabeça de impressão aberta',
     ERROR:      'Em erro',
+    ONLINE:     'Dispositivo online',
     UNKNOWN:    'Status não identificado',
     OFFLINE:    'Sem conexão',
     CONNECTING: 'Consultando…',
@@ -52,35 +53,49 @@ export function parseZebraStatus(raw) {
 }
 
 /**
- * Consulta o status da impressora através do túnel (proxy.php)
- * e devolve { state, detail, raw }.
+ * Consulta o status do dispositivo através do túnel (proxy.php).
+ * Usa o endpoint normalizado ?action=status (proxy v3, baseado em ~HS);
+ * se o proxy for antigo, cai para a leitura/scraping da página web.
+ * Devolve { state, detail, flags, source, raw }.
  */
 export async function fetchPrinterStatus(ip, apiBaseUrl) {
     if (!ip) return { state: 'OFFLINE', detail: 'IP inválido.' };
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
 
     try {
-        let res = await fetch(`${apiBaseUrl}?ip=${encodeURIComponent(ip)}&as_json=1`, { cache: 'no-store', signal: controller.signal });
-        if (!res.ok) {
-            res = await fetch(`${apiBaseUrl}?ip=${encodeURIComponent(ip)}`, { cache: 'no-store', signal: controller.signal });
-            if (!res.ok) throw new Error('Erro HTTP ' + res.status);
-        }
+        const res = await fetch(`${apiBaseUrl}?action=status&ip=${encodeURIComponent(ip)}&as_json=1`, { cache: 'no-store', signal: controller.signal });
         clearTimeout(timeoutId);
 
         const ct = (res.headers.get('content-type') || '').toLowerCase();
-        let body;
-        if (ct.includes('application/json')) {
-            const payload = await res.json();
-            body = payload.body_base64 ? base64ToUtf8(payload.body_base64)
-                 : (payload.raw_html || payload.raw_response || JSON.stringify(payload));
-        } else {
-            body = await res.text();
+        if (!ct.includes('application/json')) {
+            // proxy antigo devolvendo HTML cru
+            const text = await res.text();
+            return { ...parseZebraStatus(text), raw: text };
         }
 
-        const parsed = parseZebraStatus(body);
-        return { ...parsed, raw: body };
+        const payload = await res.json().catch(() => null);
+        if (payload && payload.state) {
+            // proxy v3 — status já normalizado (via ~HS/web/ping)
+            const useDetail = ['ONLINE', 'OFFLINE'].includes(payload.state);
+            return {
+                state: payload.state,
+                detail: payload.detail || (useDetail ? null : ''),
+                flags: payload.flags || null,
+                source: payload.source || null,
+                raw: payload.hs_raw || '',
+            };
+        }
+        if (payload && payload.body_base64) {
+            // proxy antigo com as_json — faz o scraping do HTML da impressora
+            const body = base64ToUtf8(payload.body_base64);
+            return { ...parseZebraStatus(body), raw: body };
+        }
+        if (payload && payload.error) {
+            return { state: 'OFFLINE', detail: payload.error, proxyError: true };
+        }
+        return { state: 'OFFLINE', detail: 'Sem resposta do dispositivo.' };
 
     } catch (err) {
         clearTimeout(timeoutId);

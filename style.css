@@ -304,6 +304,8 @@ body{
 .zt-lcd.lcd-error .lcd-icon{ color:#fecaca; }
 .zt-lcd.lcd-unknown{ background:linear-gradient(160deg,#292524,#57534e); color:#fef3c7; }
 .zt-lcd.lcd-unknown .lcd-icon{ color:#fbbf24; }
+.zt-lcd.lcd-online{ background:linear-gradient(160deg,#062a38,#0e5a6e); color:#cffafe; }
+.zt-lcd.lcd-online .lcd-icon{ color:#67e8f9; }
 .zt-lcd.lcd-off{ background:linear-gradient(160deg,#0a0c0f,#14171c); color:#94a3b8; }
 .zt-lcd.lcd-off .lcd-icon{ color:#64748b; }
 .zt-lcd.lcd-connecting{ color:#bae6fd; }

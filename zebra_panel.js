@@ -121,6 +121,7 @@ const STATE_META = {
     MEDIA_OUT:  { cls:'lcd-error',      icon:'alert', title:'ALERTA: SEM ETIQUETA', sub:'Reponha as etiquetas e calibre os sensores.', chip:'MEDIA OUT', conn:'ok' },
     HEAD_OPEN:  { cls:'lcd-error',      icon:'alert', title:'CABEÇA ABERTA',        sub:'Feche e trave o cabeçote de impressão.', chip:'HEAD OPEN', conn:'ok' },
     ERROR:      { cls:'lcd-error',      icon:'alert', title:'EM ERRO',              sub:'Condição de erro detectada no equipamento.', chip:'ERRO', conn:'ok' },
+    ONLINE:     { cls:'lcd-online',     icon:'net',   title:'ONLINE',               sub:'Dispositivo acessível na rede (status detalhado indisponível).', chip:'ONLINE', conn:'ok' },
     UNKNOWN:    { cls:'lcd-unknown',    icon:'help',  title:'STATUS INDEFINIDO',    sub:'Não foi possível interpretar o status.', chip:'INDEFINIDO', conn:'ok' },
     OFFLINE:    { cls:'lcd-off',        icon:'wifiOff', title:'SEM CONEXÃO',        sub:'A impressora não respondeu pelo túnel.', chip:'OFFLINE', conn:'down' },
     CONNECTING: { cls:'lcd-connecting', icon:null,    title:'CONSULTANDO…',         sub:'Lendo status pelo túnel corporativo.', chip:'SYNC', conn:'wait' },
@@ -167,6 +168,7 @@ function applyLeds(state) {
         MEDIA_OUT:  { status:['red',true], pause:['amber',false], data:off, supplies:['red',false], network:['green',false] },
         HEAD_OPEN:  { status:['red',true], pause:['amber',false], data:off, supplies:off, network:['green',false] },
         ERROR:      { status:['red',true], pause:off, data:off, supplies:off, network:['green',false] },
+        ONLINE:     { status:['green',false], pause:off, data:off, supplies:off, network:['green',false] },
         UNKNOWN:    { status:['amber',true], pause:off, data:off, supplies:off, network:['green',false] },
         OFFLINE:    { status:off, pause:off, data:off, supplies:off, network:['red',true] },
         CONNECTING: { status:off, pause:off, data:['green',true], supplies:off, network:['amber',true] },
@@ -204,7 +206,7 @@ function renderState(state, detail) {
     const lcd = $('zt-lcd');
     if (!lcd) return;
 
-    const useDetail = detail && ['UNKNOWN','OFFLINE','ERROR'].includes(state);
+    const useDetail = detail && ['UNKNOWN','OFFLINE','ERROR','ONLINE'].includes(state);
     const sub = useDetail ? detail : meta.sub;
     const flags = { net: state !== 'OFFLINE', ribbon: state !== 'RIBBON_OUT', label: state !== 'MEDIA_OUT' };
 

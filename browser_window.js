@@ -68,6 +68,11 @@ function rewriteHtml(html, baseUrl) {
         const a = abs(s.getAttribute('src'));
         if (a) s.setAttribute('src', proxyAsset(a));
     });
+    // frames / iframes (print servers antigos usam frames)
+    doc.querySelectorAll('frame[src], iframe[src]').forEach(fr => {
+        const a = abs(fr.getAttribute('src'));
+        if (a) fr.setAttribute('src', proxyAsset(a));
+    });
     // background/style inline com url(...)
     doc.querySelectorAll('[style*="url("]').forEach(el => {
         el.setAttribute('style', el.getAttribute('style').replace(/url\((['"]?)([^'")]+)\1\)/gi, (m, q, u) => {
@@ -148,7 +153,7 @@ function hideLoader() { loader().classList.add('hidden'); }
 async function renderFromResponse(payload, requestedUrl) {
     const eff = payload.effective_url || requestedUrl;
     const bodyText = payload.body_base64 ? base64ToUtf8(payload.body_base64) : (payload.raw || '');
-    const ct = (findHeader(payload.headers, 'content-type') || '').toLowerCase();
+    const ct = (payload.content_type || findHeader(payload.headers, 'content-type') || '').toLowerCase();
 
     currentUrl = eff;
     urlInput().value = eff;
