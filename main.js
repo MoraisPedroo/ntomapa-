@@ -8,6 +8,7 @@ import { initPrinters, getPrinters, addPrinter, updatePrinter, deletePrinter, is
 
 let API_BASE_URL = "https://replacement-way-milk-auction.trycloudflare.com/proxy.php";
 let currentPrinterIp = '';
+let currentPrinter = null;
 let printerData = [];
 let currentFloor = 1;
 let transientLabel = null;
@@ -152,6 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function selectPrinter(printer) {
         currentPrinterIp = printer.ip;
+        currentPrinter = printer;
         openZebraPanel(printer, apiGetter, { onEdit: openEditForm, onDelete: confirmDelete });
         document.getElementById('ip-input-panel').value = printer.ip;
         document.getElementById('panel-current-ip').textContent = printer.ip;
@@ -201,6 +203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('pf-selb').value = '';
         document.getElementById('pf-ip').value = '';
         document.getElementById('pf-observations').value = '';
+        document.getElementById('pf-webpath').value = '';
         document.getElementById('pf-floor').value = currentFloor;
         fillPos(pos || null);
         pfModal.classList.remove('hidden');
@@ -213,6 +216,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('pf-selb').value = printer.selb || '';
         document.getElementById('pf-ip').value = printer.ip || '';
         document.getElementById('pf-observations').value = printer.observations || '';
+        document.getElementById('pf-webpath').value = printer.webPath || '';
         document.getElementById('pf-floor').value = printer.floor || 1;
         fillPos(printer.pos);
         closeZebraPanel();
@@ -239,12 +243,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!ip) { showToast('Informe o endereço IP.'); return; }
         if (!pendingPos) { showToast('Defina a posição no mapa.'); return; }
 
+        let webPath = document.getElementById('pf-webpath').value.trim();
+        if (webPath && webPath[0] !== '/') webPath = '/' + webPath;
         const data = {
             name,
             department: document.getElementById('pf-department').value.trim(),
             selb: document.getElementById('pf-selb').value.trim() || name,
             ip,
             observations: document.getElementById('pf-observations').value.trim(),
+            webPath,
             floor: parseInt(document.getElementById('pf-floor').value),
             pos: pendingPos,
         };
@@ -281,7 +288,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('btn-open-web-panel').addEventListener('click', () => {
         if (!currentPrinterIp) { showToast('Defina um IP primeiro.'); return; }
-        openBrowserWindow(currentPrinterIp, API_BASE_URL);
+        const wp = currentPrinter && currentPrinter.ip === currentPrinterIp ? (currentPrinter.webPath || '') : '';
+        openBrowserWindow(currentPrinterIp + wp, API_BASE_URL);
     });
     document.getElementById('btn-restart-panel').addEventListener('click', () => {
         if (confirm('Reiniciar?')) sendCommand('~JR', 'Reiniciar', currentPrinterIp, API_BASE_URL);

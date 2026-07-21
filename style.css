@@ -442,6 +442,7 @@ body{
 .form-grid label{ display:flex; flex-direction:column; gap:5px; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
 .form-grid label.full{ grid-column:1 / -1; }
 .form-grid input, .form-grid textarea, .form-grid select{ font-weight:400; text-transform:none; letter-spacing:0; }
+.lbl-hint{ text-transform:none; letter-spacing:0; font-weight:400; color:var(--faint); font-size:.66rem; }
 @media (max-width:520px){ .form-grid{ grid-template-columns:1fr; } }
 .pf-pos-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:16px; font-size:.8rem; color:var(--muted); }
 .pf-pos-row code{ background:var(--card); border:1px solid var(--card-border); border-radius:7px; padding:3px 8px; font-size:.75rem; color:var(--accent); }

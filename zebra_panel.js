@@ -416,7 +416,11 @@ function init() {
     $('zp-refresh').addEventListener('click', () => { if (!busy) { renderState('CONNECTING'); refreshStatus(); } });
     $('zp-calibrate').addEventListener('click', () => keyAction(CALIBRAGEM, 'Calibrar', 4000));
     $('zp-headtest').addEventListener('click', () => keyAction(TESTE_CABECA, 'Teste Cabeça'));
-    $('zp-open-web').addEventListener('click', () => { if (current) openBrowserWindow(current.ip, getApi()); });
+    $('zp-open-web').addEventListener('click', () => {
+        if (!current) return;
+        const wp = current.webPath ? (current.webPath[0] === '/' ? current.webPath : '/' + current.webPath) : '';
+        openBrowserWindow(current.ip + wp, getApi());
+    });
 
     // editar / excluir
     $('zp-edit').addEventListener('click', () => { if (current && handlers.onEdit) handlers.onEdit(current); });
