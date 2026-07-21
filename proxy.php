@@ -32,6 +32,10 @@
  * Compatível com PHP 7.1+.
  * ===================================================================== */
 
+// nunca deixa avisos/erros do PHP vazarem para dentro das páginas/JSON
+error_reporting(0);
+@ini_set('display_errors', '0');
+
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type, X-Printer-Auth");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
@@ -75,6 +79,22 @@ function basic_auth_header() {
     return null;
 }
 
+/* Credenciais Basic Auth guardadas por host (o usuário digita uma vez no
+   formulário de login e o proxy reutiliza nas próximas requisições) */
+function auth_store_for($host) {
+    $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'mapanto_auth';
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    $safe = preg_replace('/[^a-z0-9._-]/i', '_', (string)$host);
+    return $dir . DIRECTORY_SEPARATOR . ($safe ?: 'default') . '.auth';
+}
+function get_stored_auth($host) {
+    $f = auth_store_for($host);
+    if (is_file($f)) { $c = @file_get_contents($f); if ($c !== false && strpos($c, ':') !== false) return $c; }
+    return null;
+}
+function set_stored_auth($host, $userpass) { @file_put_contents(auth_store_for($host), $userpass); }
+function clear_stored_auth($host) { $f = auth_store_for($host); if (is_file($f)) @unlink($f); }
+
 /* query preservando chaves repetidas (checkbox/select múltiplos) */
 function build_form_query($form) {
     if (!is_array($form)) return (string)$form;
@@ -95,7 +115,7 @@ function resolve_url($rel, $base) {
         $s = parse_url($base, PHP_URL_SCHEME); if (!$s) $s = 'http';
         return $s . ':' . $rel;
     }
-    if (!preg_match('#^(https?)://([^/]+)(/[^?#]*)?#i', $base, $bm)) return $rel;
+    if (!preg_match('~^(https?)://([^/]+)(/[^?#]*)?~i', $base, $bm)) return $rel;
     $scheme = $bm[1]; $host = $bm[2]; $bpath = isset($bm[3]) && $bm[3] !== '' ? $bm[3] : '/';
 
     if ($rel[0] === '#') return preg_replace('/#.*$/', '', $base) . $rel;
@@ -135,6 +155,7 @@ function http_request($url, $method = 'GET', $postFields = null, $extraHeaders =
         'Connection: close',
     ];
     if ($b = basic_auth_header()) $headers[] = $b;
+    else { $sa = get_stored_auth($host); if ($sa) $headers[] = 'Authorization: Basic ' . base64_encode($sa); }
     foreach ((array)$extraHeaders as $h) if (is_string($h) && $h !== '') $headers[] = $h;
 
     curl_setopt_array($ch, [
@@ -218,9 +239,9 @@ function rewrite_css_urls($css, $base) {
 function _rewrite_attr($attrs, $name, $mode, $base) {
     $re = '#(\s' . $name . '\s*=\s*)("([^"]*)"|\'([^\']*)\'|([^\s>]+))#i';
     return preg_replace_callback($re, function ($a) use ($mode, $base) {
-        $val = ($a[3] !== '') ? $a[3] : (($a[4] ?? '') !== '' ? $a[4] : ($a[5] ?? ''));
+        $val = (($a[3] ?? '') !== '') ? $a[3] : ((($a[4] ?? '') !== '') ? $a[4] : ($a[5] ?? ''));
         $v = trim($val);
-        if ($v === '' || preg_match('#^(javascript:|mailto:|tel:|data:|about:|#)#i', $v)) return $a[0];
+        if ($v === '' || preg_match('~^(javascript:|mailto:|tel:|data:|about:|#)~i', $v)) return $a[0];
         $abs = resolve_url($v, $base);
         $new = ($mode === 'doc') ? proxy_doc_url($abs) : proxy_asset_url($abs);
         return $a[1] . '"' . $new . '"';
@@ -283,8 +304,36 @@ function render_error_page($url, $msg) {
          . "<code style='display:block;margin-top:10px;font-size:11px;color:#38bdf8;word-break:break-all'>$u</code></div></body></html>";
 }
 
+function render_login_page($url, $wwwAuth) {
+    $host = host_from_url($url);
+    $self = self_ref();
+    $action = htmlspecialchars($self . '?authfor=' . rawurlencode($host) . '&next=' . rawurlencode($url));
+    $realm = '';
+    if ($wwwAuth && preg_match('~realm="?([^"]+)"?~i', $wwwAuth, $m)) $realm = ' — ' . htmlspecialchars(trim($m[1], '" '));
+    $h = htmlspecialchars($host);
+    return "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+      . "<style>body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:#eef2f7;display:flex;align-items:center;justify-content:center;min-height:100vh}"
+      . ".c{background:#fff;border:1px solid #d7dee8;border-radius:14px;padding:26px 24px;width:min(360px,92vw);box-shadow:0 20px 50px -25px rgba(15,23,42,.4)}"
+      . "h2{margin:6px 0 4px;font-size:18px;color:#1e293b}p{margin:0 0 14px;font-size:12.5px;color:#64748b}"
+      . "label{display:block;font-size:12px;color:#475569;margin:10px 0 4px;font-weight:600}"
+      . "input{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}"
+      . "button{margin-top:16px;width:100%;padding:10px;border:0;border-radius:8px;background:#0284c7;color:#fff;font-weight:600;font-size:14px;cursor:pointer}"
+      . ".lock{font-size:30px;text-align:center}</style></head>"
+      . "<body><form class='c' method='post' action='$action'>"
+      . "<div class='lock'>🔒</div><h2>Autenticação necessária</h2>"
+      . "<p>O dispositivo <b>$h</b>$realm exige usuário e senha.</p>"
+      . "<label>Usuário</label><input name='u' autofocus autocomplete='username'>"
+      . "<label>Senha</label><input name='p' type='password' autocomplete='current-password'>"
+      . "<button type='submit'>Entrar</button></form></body></html>";
+}
+
 /* Emite a resposta no modo render (rewrite se HTML/CSS; cru caso contrário) */
 function output_render($res) {
+    if (!$res['error'] && (int)$res['status'] === 401) {
+        header('Content-Type: text/html; charset=UTF-8');
+        echo render_login_page($res['effective_url'], find_header($res['headers'], 'WWW-Authenticate'));
+        exit;
+    }
     if ($res['error']) {
         http_response_code(502);
         header('Content-Type: text/html; charset=UTF-8');
@@ -452,6 +501,17 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 /* ---------------------------- POST ---------------------------- */
 if ($method === 'POST') {
+
+    // Login Basic Auth: guarda as credenciais do host e recarrega a página
+    if (!empty($_GET['authfor'])) {
+        $host = trim($_GET['authfor']);
+        $u = $_POST['u'] ?? ''; $p = $_POST['p'] ?? '';
+        if ($u === '' && $p === '') { parse_str(file_get_contents('php://input'), $pp); $u = $pp['u'] ?? ''; $p = $pp['p'] ?? ''; }
+        if ($u !== '') set_stored_auth($host, $u . ':' . $p);
+        $next = !empty($_GET['next']) ? trim($_GET['next']) : ('http://' . $host . '/');
+        if (!preg_match('~^https?://~i', $next)) $next = 'http://' . $next;
+        output_render(http_request($next, 'GET'));
+    }
 
     // POST de formulário no modo render (?url=...&render=1) — vindo do próprio iframe
     if (!empty($_GET['url']) && isset($_GET['render'])) {

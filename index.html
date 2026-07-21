@@ -16,7 +16,7 @@
   <div id="side-actions">
     <div id="search-container">
       <form id="search-form" class="flex items-center">
-        <input id="search-input" type="text" placeholder="Buscar impressora..." autocomplete="off">
+        <input id="search-input" type="text" placeholder="Buscar por nome, IP ou setor..." autocomplete="off">
         <div id="search-hitbox" class="icon-hitbox">
           <button type="button" id="search-icon-btn" class="w-10 h-10 flex items-center justify-center">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -240,13 +240,12 @@
   <!-- ===================== NAVEGADOR REMOTO (PROXY) ===================== -->
   <div id="floating-window" class="floating-window hidden">
       <div id="floating-header" class="floating-header">
-          <div class="floating-controls">
-              <button class="win-btn btn-close" id="win-close" title="Fechar"></button>
-              <button class="win-btn btn-min" id="win-min" title="Minimizar"></button>
-              <button class="win-btn btn-max" id="win-max" title="Maximizar"></button>
-          </div>
           <span id="floating-title" class="floating-title">Navegador</span>
-          <div style="width:40px"></div>
+          <div class="floating-controls">
+              <button class="win-ctl" id="win-min" title="Minimizar">–</button>
+              <button class="win-ctl" id="win-max" title="Maximizar">⤢</button>
+              <button class="win-ctl close" id="win-close" title="Fechar">✕</button>
+          </div>
       </div>
       <div class="browser-bar">
           <button id="win-back" title="Voltar">‹</button>

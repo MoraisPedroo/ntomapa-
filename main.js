@@ -326,24 +326,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('search-container').classList.toggle('expanded');
     });
     searchInput.addEventListener('input', debounce(() => {
-        const term = searchInput.value.toLowerCase();
+        const term = searchInput.value.toLowerCase().trim();
         if (!term) { searchResults.style.display = 'none'; return; }
-        const matches = printerData.filter(p => p.name.toLowerCase().includes(term) || (p.selb || '').toLowerCase().includes(term));
+        // busca por nome, SELB, IP ou departamento
+        const matches = printerData.filter(p =>
+            p.name.toLowerCase().includes(term) ||
+            (p.selb || '').toLowerCase().includes(term) ||
+            (p.ip || '').includes(term) ||
+            (p.department || '').toLowerCase().includes(term)
+        );
         searchResults.innerHTML = matches.length ? '' : '<div class="result-empty">Nada encontrado</div>';
-        matches.slice(0, 30).forEach(r => {
+        matches.slice(0, 40).forEach(r => {
             const d = document.createElement('div');
             d.className = 'result-item';
-            d.innerHTML = `<b>${r.name}</b> <small>${r.selb}</small>`;
+            d.innerHTML = `
+                <div class="result-top">
+                    <span class="result-name">${r.name}</span>
+                    <span class="result-floor">Andar ${r.floor}</span>
+                </div>
+                <div class="result-sub">
+                    <span class="result-ip mono">${r.ip}</span>
+                    <span class="result-dep">${r.department || r.selb || ''}</span>
+                </div>`;
             d.onclick = () => {
                 searchResults.style.display = 'none';
                 document.getElementById('search-container').classList.remove('expanded');
+                searchInput.value = '';
                 if (r.floor !== currentFloor) { currentFloor = r.floor; floorSelect.value = r.floor; updateMapImage(); renderAllPrinters(); }
                 focusPrinter(r); selectPrinter(r);
             };
             searchResults.appendChild(d);
         });
         searchResults.style.display = 'block';
-    }, 300));
+    }, 250));
 
     /* -------------------- Carrega impressoras (store) -------------------- */
     updateMapImage();
