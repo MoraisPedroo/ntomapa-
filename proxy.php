@@ -39,7 +39,8 @@ error_reporting(0);
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type, X-Printer-Auth");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("X-Content-Type-Options: nosniff");
+// NÃO enviar X-Content-Type-Options: nosniff — quebra CSS/imagens de
+// dispositivos antigos que mandam Content-Type errado.
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') { http_response_code(204); exit; }
 
@@ -218,6 +219,22 @@ function find_header($headers, $name) {
     return $found;
 }
 
+/* Deduz o Content-Type pela extensão da URL — dispositivos antigos costumam
+   mandar o tipo errado, o que faz o navegador ignorar CSS/imagens. */
+function guess_content_type($url, $deviceCt) {
+    $path = parse_url($url, PHP_URL_PATH);
+    $ext = strtolower(pathinfo($path ? $path : '', PATHINFO_EXTENSION));
+    $map = [
+        'css' => 'text/css', 'js' => 'application/javascript', 'json' => 'application/json',
+        'gif' => 'image/gif', 'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+        'bmp' => 'image/bmp', 'ico' => 'image/x-icon', 'svg' => 'image/svg+xml', 'webp' => 'image/webp',
+        'html' => 'text/html', 'htm' => 'text/html', 'txt' => 'text/plain', 'pdf' => 'application/pdf',
+        'woff' => 'font/woff', 'woff2' => 'font/woff2', 'ttf' => 'font/ttf', 'eot' => 'application/vnd.ms-fontobject',
+    ];
+    if (isset($map[$ext])) return $map[$ext];
+    return $deviceCt ?: 'application/octet-stream';
+}
+
 /* ================================================================
  *  REESCRITA HTML/CSS (modo render) — deixa a página idêntica
  * ================================================================ */
@@ -269,7 +286,25 @@ function rewrite_html($html, $base) {
     // reescreve as tags de abertura restantes
     $html = preg_replace_callback('#<([a-zA-Z][a-zA-Z0-9]*)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>#s', function ($m) use ($base) {
         $tag = strtolower($m[1]); $attrs = $m[2];
-        $doc   = ['a' => 'href', 'area' => 'href', 'form' => 'action', 'frame' => 'src', 'iframe' => 'src'];
+
+        // Formulários: enviamos o destino como campos escondidos porque forms
+        // GET descartam a query string do action (senão o proxy recebia a
+        // requisição sem 'url' e reclamava de parâmetro obrigatório).
+        if ($tag === 'form') {
+            $action = '';
+            if (preg_match('~\saction\s*=\s*("([^"]*)"|\'([^\']*)\'|([^\s>]+))~i', $attrs, $am)) {
+                $action = (($am[2] ?? '') !== '') ? $am[2] : ((($am[3] ?? '') !== '') ? $am[3] : ($am[4] ?? ''));
+            }
+            $abs = resolve_url($action !== '' ? $action : $base, $base);
+            $abs = preg_replace('/[?#].*$/', '', $abs);
+            $method = preg_match('~\smethod\s*=\s*["\']?\s*post~i', $attrs) ? 'post' : 'get';
+            $attrs = preg_replace('~\s(action|method)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)~i', '', $attrs);
+            $hidden = '<input type="hidden" name="__mp_url" value="' . htmlspecialchars($abs) . '">'
+                    . '<input type="hidden" name="__mp_render" value="1">';
+            return '<form' . $attrs . ' action="' . self_ref() . '" method="' . $method . '">' . $hidden;
+        }
+
+        $doc   = ['a' => 'href', 'area' => 'href', 'frame' => 'src', 'iframe' => 'src'];
         $asset = ['img' => 'src', 'link' => 'href', 'embed' => 'src', 'source' => 'src', 'audio' => 'src', 'video' => 'src', 'track' => 'src'];
         if (isset($doc[$tag]))   $attrs = _rewrite_attr($attrs, $doc[$tag], 'doc', $base);
         if (isset($asset[$tag])) $attrs = _rewrite_attr($attrs, $asset[$tag], 'asset', $base);
@@ -341,19 +376,23 @@ function output_render($res) {
         exit;
     }
     $ct = $res['content_type'] ?: (find_header($res['headers'], 'Content-Type') ?: '');
+    $guess = guess_content_type($res['effective_url'], $ct);
     http_response_code($res['status'] ?: 200);
 
-    if ($ct === '' || stripos($ct, 'text/html') !== false || stripos($ct, 'application/xhtml') !== false) {
-        header('Content-Type: ' . ($ct ?: 'text/html; charset=UTF-8'));
+    // HTML? (pelo tipo do dispositivo, vazio, ou deduzido pela extensão .htm/.html)
+    if ($ct === '' || stripos($ct, 'text/html') !== false || stripos($ct, 'application/xhtml') !== false || stripos($guess, 'text/html') !== false) {
+        header('Content-Type: ' . ($ct && stripos($ct, 'text/html') !== false ? $ct : 'text/html; charset=UTF-8'));
         echo rewrite_html($res['body'], $res['effective_url']);
         exit;
     }
-    if (stripos($ct, 'text/css') !== false) {
-        header('Content-Type: ' . $ct);
+    // CSS? (força text/css mesmo se o dispositivo mandou o tipo errado)
+    if (stripos($guess, 'text/css') !== false) {
+        header('Content-Type: text/css');
         echo rewrite_css_urls($res['body'], $res['effective_url']);
         exit;
     }
-    header('Content-Type: ' . ($ct ?: 'application/octet-stream'));
+    // demais (imagens/js/fontes): usa o tipo deduzido pela extensão
+    header('Content-Type: ' . $guess);
     echo $res['body'];
     exit;
 }
@@ -513,6 +552,14 @@ if ($method === 'POST') {
         output_render(http_request($next, 'GET'));
     }
 
+    // POST de formulário do dispositivo (destino nos campos escondidos __mp_url)
+    if (!empty($_POST['__mp_url'])) {
+        $device = trim($_POST['__mp_url']);
+        if (!preg_match('~^https?://~i', $device)) $device = 'http://' . $device;
+        $fields = $_POST; unset($fields['__mp_url'], $fields['__mp_render']);
+        output_render(http_request($device, 'POST', build_form_query($fields), ['Content-Type: application/x-www-form-urlencoded']));
+    }
+
     // POST de formulário no modo render (?url=...&render=1) — vindo do próprio iframe
     if (!empty($_GET['url']) && isset($_GET['render'])) {
         $target = trim($_GET['url']);
@@ -565,6 +612,18 @@ if ($action === 'ping'   && !empty($_GET['ip'])) send_json(ping_printer(trim($_G
 if ($action === 'status' && !empty($_GET['ip'])) send_json(device_status(trim($_GET['ip'])), 200);
 if ($action === 'info'   && !empty($_GET['ip'])) send_json(zebra_info(trim($_GET['ip'])), 200);
 
+// GET de formulário do dispositivo (destino nos campos escondidos __mp_url)
+if (!empty($_GET['__mp_url'])) {
+    $device = trim($_GET['__mp_url']);
+    if (!preg_match('~^https?://~i', $device)) $device = 'http://' . $device;
+    $fields = $_GET; unset($fields['__mp_url'], $fields['__mp_render']);
+    if (!empty($fields)) {
+        $sep = (strpos($device, '?') === false) ? '?' : '&';
+        $device .= $sep . build_form_query($fields);
+    }
+    output_render(http_request($device, 'GET'));
+}
+
 // alvo
 if (!empty($_GET['url'])) {
     $target = trim($_GET['url']);
@@ -595,9 +654,10 @@ if ($wantJson) {
     send_json($payload, $res['error'] ? 502 : 200);
 }
 
-// modo bruto — Content-Type preservado; CSS ganha url() reescrito
+// modo bruto — Content-Type deduzido pela extensão; CSS ganha url() reescrito
 if ($res['error']) send_json(['error' => "Falha ao acessar {$target}: " . $res['error']], 502);
-$ct = $res['content_type'] ?: (find_header($res['headers'], 'Content-Type') ?: 'text/html; charset=UTF-8');
+$devCt = $res['content_type'] ?: (find_header($res['headers'], 'Content-Type') ?: '');
+$ct = guess_content_type($res['effective_url'], $devCt ?: 'text/html; charset=UTF-8');
 header("Content-Type: {$ct}");
 http_response_code($res['status'] ?: 200);
 if (stripos($ct, 'text/css') !== false) echo rewrite_css_urls($res['body'], $res['effective_url']);
