@@ -28,8 +28,18 @@ function normalizeTarget(input) {
     if (!/^https?:\/\//i.test(t)) t = 'http://' + t;
     return t;
 }
+// URL de render baseada em caminho: proxy.php/http/HOST/PATH?query
+// (assim o <base> injetado pelo proxy faz TODA URL relativa — inclusive as
+//  geradas por JavaScript — resolver de volta pelo proxy)
 function renderUrl(deviceUrl) {
-    return `${currentApiUrl}?url=${encodeURIComponent(deviceUrl)}&render=1`;
+    const base = currentApiUrl.split('?')[0].replace(/\/+$/, '');
+    const m = deviceUrl.match(/^(https?):\/\/([^\/?#]+)(\/[^?#]*)?(\?[^#]*)?/i);
+    if (!m) return `${base}/http/${deviceUrl.replace(/^https?:\/\//i, '')}`;
+    const scheme = m[1].toLowerCase();
+    const host = m[2];
+    const path = m[3] || '/';
+    const query = m[4] || '';
+    return `${base}/${scheme}/${host}${path}${query}`;
 }
 function showLoader(text) { loaderText().textContent = text || 'Carregando…'; loader().classList.remove('hidden'); }
 function hideLoader() { loader().classList.add('hidden'); }

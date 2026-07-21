@@ -53,6 +53,26 @@ function self_ref() {
     $b = basename($s);
     return $b !== '' ? $b : 'proxy.php';
 }
+/* caminho absoluto do próprio script (ex.: /proxy.php) */
+function self_abs() {
+    $s = $_SERVER['SCRIPT_NAME'] ?? '/proxy.php';
+    return $s !== '' ? $s : '/proxy.php';
+}
+
+/* PATH_INFO após o proxy.php (ex.: /http/172.19.114.117/SYSTEM.HTM).
+   Alguns servidores não preenchem PATH_INFO — então extraímos do REQUEST_URI. */
+function extract_path_info() {
+    $pi = $_SERVER['PATH_INFO'] ?? '';
+    if ($pi === '' && !empty($_SERVER['ORIG_PATH_INFO'])) $pi = $_SERVER['ORIG_PATH_INFO'];
+    if ($pi === '') {
+        $script = $_SERVER['SCRIPT_NAME'] ?? '';
+        $reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+        if ($script && $reqPath && strpos($reqPath, $script) === 0 && strlen($reqPath) > strlen($script)) {
+            $pi = substr($reqPath, strlen($script));
+        }
+    }
+    return $pi;
+}
 
 /* ---------------------------------------------------------------- utils */
 function send_json($data, $status = 200) {
@@ -341,8 +361,7 @@ function render_error_page($url, $msg) {
 
 function render_login_page($url, $wwwAuth, $error = '') {
     $host = host_from_url($url);
-    $self = self_ref();
-    $action = htmlspecialchars($self . '?authfor=' . rawurlencode($host) . '&next=' . rawurlencode($url));
+    $action = htmlspecialchars(self_abs() . '?authfor=' . rawurlencode($host) . '&next=' . rawurlencode($url));
     $realm = '';
     if ($wwwAuth && preg_match('~realm="?([^"]+)"?~i', $wwwAuth, $m)) $realm = ' — ' . htmlspecialchars(trim($m[1], '" '));
     $h = htmlspecialchars($host);
@@ -362,6 +381,72 @@ function render_login_page($url, $wwwAuth, $error = '') {
       . "<label>Usuário</label><input name='u' autofocus autocomplete='username'>"
       . "<label>Senha</label><input name='p' type='password' autocomplete='current-password'>"
       . "<button type='submit'>Entrar</button></form></body></html>";
+}
+
+/* Injeta <base> (para URLs relativas resolverem via proxy), tira target=_top
+   e injeta o reporter de URL. Não reescreve o resto — o <base> cuida de tudo,
+   inclusive do que o JavaScript gera em tempo real. */
+function inject_base($html, $device, $scheme) {
+    $p = parse_url($device);
+    $host = $p['host'] ?? '';
+    if (isset($p['port'])) $host .= ':' . $p['port'];
+    $path = $p['path'] ?? '/';
+    $dir = preg_replace('#/[^/]*$#', '/', $path);
+    if ($dir === '') $dir = '/';
+    $baseHref = self_abs() . '/' . $scheme . '/' . $host . $dir;
+    $baseTag = '<base href="' . htmlspecialchars($baseHref) . '">';
+
+    // remove qualquer <base> próprio da página (o nosso precisa valer)
+    $html = preg_replace('~<base\b[^>]*>~i', '', $html);
+
+    // insere o <base> logo após <head> (antes de qualquer <link>/<script>)
+    if (preg_match('~<head[^>]*>~i', $html)) {
+        $html = preg_replace('~(<head[^>]*>)~i', '$1' . $baseTag, $html, 1);
+    } elseif (preg_match('~<html[^>]*>~i', $html)) {
+        $html = preg_replace('~(<html[^>]*>)~i', '$1' . $baseTag, $html, 1);
+    } else {
+        $html = $baseTag . $html;
+    }
+
+    // links/forms com target=_top/_parent quebrariam para fora do iframe -> remove
+    $html = preg_replace('~(<(?:a|form)\b[^>]*?)\s+target\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)~i', '$1', $html);
+
+    // reporter da URL real p/ a barra de endereço do app
+    $inject = '<script>(function(){try{parent.postMessage({type:"PROXY_URL",url:' . json_encode($device) . '},"*");}catch(e){}})();</script>';
+    if (stripos($html, '</body>') !== false) $html = preg_replace('#</body>#i', $inject . '</body>', $html, 1);
+    else $html .= $inject;
+
+    return $html;
+}
+
+/* Modo render baseado em caminho (proxy.php/http/HOST/PATH). */
+function output_render_pathbased($res, $scheme) {
+    if (!$res['error'] && (int)$res['status'] === 401) {
+        header('Content-Type: text/html; charset=UTF-8');
+        echo render_login_page($res['effective_url'], find_header($res['headers'], 'WWW-Authenticate'));
+        exit;
+    }
+    if ($res['error']) {
+        http_response_code(502);
+        header('Content-Type: text/html; charset=UTF-8');
+        echo render_error_page($res['effective_url'], $res['error']);
+        exit;
+    }
+    $ct = $res['content_type'] ?: (find_header($res['headers'], 'Content-Type') ?: '');
+    $guess = guess_content_type($res['effective_url'], $ct);
+    http_response_code($res['status'] ?: 200);
+
+    // HTML -> injeta <base> e deixa o navegador resolver tudo pelo proxy
+    if ($ct === '' || stripos($ct, 'text/html') !== false || stripos($ct, 'application/xhtml') !== false || stripos($guess, 'text/html') !== false) {
+        header('Content-Type: ' . ($ct && stripos($ct, 'text/html') !== false ? $ct : 'text/html; charset=UTF-8'));
+        echo inject_base($res['body'], $res['effective_url'], $scheme);
+        exit;
+    }
+    // CSS/JS/imagens: entrega cru com o tipo correto (as url() do CSS já
+    // resolvem sozinhas pelo caminho — não precisa reescrever)
+    header('Content-Type: ' . $guess);
+    echo $res['body'];
+    exit;
 }
 
 /* Emite a resposta no modo render (rewrite se HTML/CSS; cru caso contrário) */
@@ -539,6 +624,27 @@ function ping_printer($ip) {
  *                              ROTEAMENTO
  * ===================================================================== */
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+/* ---- MODO RENDER BASEADO EM CAMINHO: proxy.php/http/HOST/PATH?query ----
+   A página do dispositivo carrega direto do proxy com um <base>, então toda
+   URL relativa (inclusive as que o JavaScript gera) resolve pelo proxy. */
+$pathInfo = extract_path_info();
+if (preg_match('~^/(https?)/(.+)$~i', $pathInfo, $pm)) {
+    $scheme = strtolower($pm[1]);
+    $device = $scheme . '://' . $pm[2];
+    $qs = $_SERVER['QUERY_STRING'] ?? '';
+    if ($qs !== '') $device .= (strpos($device, '?') === false ? '?' : '&') . $qs;
+
+    if ($method === 'POST') {
+        $ctype = $_SERVER['CONTENT_TYPE'] ?? 'application/x-www-form-urlencoded';
+        $body  = file_get_contents('php://input');
+        if ($body === '' && !empty($_POST)) $body = build_form_query($_POST);
+        $res = http_request($device, 'POST', $body, ['Content-Type: ' . $ctype]);
+    } else {
+        $res = http_request($device, 'GET');
+    }
+    output_render_pathbased($res, $scheme);
+}
 
 /* ---------------------------- POST ---------------------------- */
 if ($method === 'POST') {
