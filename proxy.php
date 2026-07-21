@@ -339,13 +339,14 @@ function render_error_page($url, $msg) {
          . "<code style='display:block;margin-top:10px;font-size:11px;color:#38bdf8;word-break:break-all'>$u</code></div></body></html>";
 }
 
-function render_login_page($url, $wwwAuth) {
+function render_login_page($url, $wwwAuth, $error = '') {
     $host = host_from_url($url);
     $self = self_ref();
     $action = htmlspecialchars($self . '?authfor=' . rawurlencode($host) . '&next=' . rawurlencode($url));
     $realm = '';
     if ($wwwAuth && preg_match('~realm="?([^"]+)"?~i', $wwwAuth, $m)) $realm = ' — ' . htmlspecialchars(trim($m[1], '" '));
     $h = htmlspecialchars($host);
+    $err = $error !== '' ? "<div style='background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:8px 11px;font-size:12.5px;margin-bottom:10px'>" . htmlspecialchars($error) . "</div>" : '';
     return "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
       . "<style>body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:#eef2f7;display:flex;align-items:center;justify-content:center;min-height:100vh}"
       . ".c{background:#fff;border:1px solid #d7dee8;border-radius:14px;padding:26px 24px;width:min(360px,92vw);box-shadow:0 20px 50px -25px rgba(15,23,42,.4)}"
@@ -357,6 +358,7 @@ function render_login_page($url, $wwwAuth) {
       . "<body><form class='c' method='post' action='$action'>"
       . "<div class='lock'>🔒</div><h2>Autenticação necessária</h2>"
       . "<p>O dispositivo <b>$h</b>$realm exige usuário e senha.</p>"
+      . $err
       . "<label>Usuário</label><input name='u' autofocus autocomplete='username'>"
       . "<label>Senha</label><input name='p' type='password' autocomplete='current-password'>"
       . "<button type='submit'>Entrar</button></form></body></html>";
@@ -549,7 +551,14 @@ if ($method === 'POST') {
         if ($u !== '') set_stored_auth($host, $u . ':' . $p);
         $next = !empty($_GET['next']) ? trim($_GET['next']) : ('http://' . $host . '/');
         if (!preg_match('~^https?://~i', $next)) $next = 'http://' . $next;
-        output_render(http_request($next, 'GET'));
+        $res = http_request($next, 'GET');
+        if ((int)$res['status'] === 401) {
+            clear_stored_auth($host);   // credenciais erradas — não guarda
+            header('Content-Type: text/html; charset=UTF-8');
+            echo render_login_page($res['effective_url'], find_header($res['headers'], 'WWW-Authenticate'), 'Usuário ou senha incorretos. Tente novamente.');
+            exit;
+        }
+        output_render($res);
     }
 
     // POST de formulário do dispositivo (destino nos campos escondidos __mp_url)

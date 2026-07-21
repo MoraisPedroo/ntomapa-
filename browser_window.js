@@ -96,6 +96,28 @@ export function navigateFromBar() {
     if (val) loadDevice(val);
 }
 
+/* Baixa o código-fonte ORIGINAL (sem reescrita) da página atual — diagnóstico */
+export async function downloadSource() {
+    const target = currentDeviceUrl || normalizeTarget(urlInput().value);
+    if (!target) { logPanel('Download: nenhuma página aberta.'); return; }
+    try {
+        logPanel(`Baixando código-fonte de ${target} ...`);
+        const res = await fetch(`${currentApiUrl}?url=${encodeURIComponent(target)}`, { cache: 'no-store' });
+        const blob = await res.blob();
+        const name = (target.replace(/^https?:\/\//, '').replace(/[^\w.-]+/g, '_').replace(/_+$/, '') || 'pagina')
+            .replace(/(\.html?|\.htm)$/i, '') + '.html';
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+        logPanel(`Download: ${name} salvo.`);
+    } catch (e) {
+        logPanel(`Download falhou: ${e.message}`);
+    }
+}
+
 /* ------------------------------------------------------------------
    Sinais vindos do iframe (script injetado pelo proxy no modo render)
 ------------------------------------------------------------------ */
@@ -136,8 +158,10 @@ export function setupDragLogic() {
 
     const maxBtn = document.getElementById('win-max');
     const minBtn = document.getElementById('win-min');
+    const dlBtn  = document.getElementById('win-download');
     if (maxBtn) maxBtn.addEventListener('click', () => win.classList.toggle('maximized'));
     if (minBtn) minBtn.addEventListener('click', () => win.classList.add('hidden'));
+    if (dlBtn)  dlBtn.addEventListener('click', downloadSource);
 
     // esconde o loader quando o iframe termina de carregar (inclusive PDFs/imagens sem script)
     const fr = iframe();

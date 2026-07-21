@@ -519,6 +519,9 @@ body{
 .win-ctl{ width:30px; height:30px; border-radius:8px; border:1px solid var(--card-border); background:var(--card-strong); color:var(--muted); font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .13s; }
 .win-ctl:hover{ background:var(--accent-soft); color:var(--accent); border-color:var(--accent-border); }
 .win-ctl.close:hover{ background:var(--red); color:#fff; border-color:var(--red); }
+.win-ctl.subtle{ opacity:.28; font-size:13px; }
+.floating-header:hover .win-ctl.subtle{ opacity:.65; }
+.win-ctl.subtle:hover{ opacity:1; }
 .browser-bar{ height:40px; background:var(--card); border-bottom:1px solid var(--card-border); display:flex; align-items:center; padding:0 10px; gap:8px; }
 .browser-bar button{ color:var(--muted); font-size:1.05rem; width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .browser-bar button:hover{ color:var(--accent); background:var(--accent-soft); }
