@@ -102,7 +102,10 @@ function rewriteHtml(html, baseUrl) {
     const interceptor = doc.createElement('script');
     interceptor.textContent = `
         (function(){
+          var lastSubmitter = null;
           document.addEventListener('click', function(e){
+            var b = e.target.closest && e.target.closest('button, input[type=submit], input[type=image]');
+            if (b) lastSubmitter = b;
             var a = e.target.closest && e.target.closest('a[data-proxy-href]');
             if (a){ e.preventDefault();
               parent.postMessage({ type:'PROXY_NAV', url:a.getAttribute('data-proxy-href') }, '*'); }
@@ -113,12 +116,17 @@ function rewriteHtml(html, baseUrl) {
             e.preventDefault();
             var fd = new FormData(f); var data = {};
             fd.forEach(function(v,k){
+              if (typeof v !== 'string') return; // ignora arquivos (não suportado pelo túnel)
               if (data[k] === undefined) data[k] = v;
               else { if(!Array.isArray(data[k])) data[k]=[data[k]]; data[k].push(v); }
             });
+            // inclui o botão que disparou o envio (name=value) — Zebras exigem isso
+            var sub = e.submitter || lastSubmitter;
+            if (sub && sub.name && data[sub.name] === undefined) data[sub.name] = sub.value || '';
             parent.postMessage({ type:'PROXY_FORM',
               action: f.getAttribute('data-proxy-action'),
               method: f.getAttribute('data-proxy-method') || 'GET',
+              enctype: f.getAttribute('enctype') || 'application/x-www-form-urlencoded',
               data: data }, '*');
           }, true);
         })();
