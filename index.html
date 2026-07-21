@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+  <div class="bg-fx"></div>
 
   <!-- Busca flutuante -->
   <div id="side-actions">
@@ -40,6 +41,14 @@
         </div>
       </div>
       <div class="app-controls">
+        <button id="add-printer-btn" class="ghost-btn" title="Adicionar impressora ao mapa">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          <span class="hide-sm">Adicionar</span>
+        </button>
+        <button id="theme-toggle" class="ghost-btn icon-only" title="Alternar tema claro/escuro" aria-label="Alternar tema">
+          <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+          <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+        </button>
         <div class="floor-pill">
           <label for="floor-select">Andar</label>
           <select id="floor-select">
@@ -50,10 +59,15 @@
       </div>
     </header>
 
+    <div id="add-mode-banner" class="add-mode-banner hidden">
+      <span>🖱️ Clique no mapa para posicionar a nova impressora</span>
+      <button id="add-mode-cancel">Cancelar</button>
+    </div>
+
     <main id="map-and-content">
       <div id="map-container" class="relative mx-auto" style="width: min(3840px, 92vw); aspect-ratio: 3840 / 2715;">
         <div id="map-inner" class="relative w-full h-full">
-          <img id="map-image" src="plantanto.jpg" alt="Planta" class="w-full h-full object-contain bg-white">
+          <img id="map-image" src="plantanto.jpg" alt="Planta" class="w-full h-full object-contain">
         </div>
         <div id="map-tooltip"></div>
       </div>
@@ -104,7 +118,17 @@
 
       <!-- Informações do equipamento -->
       <aside class="zebra-info">
-        <span id="zp-department" class="dept-chip">—</span>
+        <div class="info-head">
+          <span id="zp-department" class="dept-chip">—</span>
+          <div class="info-head-actions">
+            <button id="zp-edit" class="mini-btn" title="Editar impressora">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+            </button>
+            <button id="zp-delete" class="mini-btn danger" title="Excluir impressora">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+            </button>
+          </div>
+        </div>
         <h2 id="zp-name">—</h2>
         <dl class="info-list">
           <div><dt>SELB</dt><dd id="zp-selb" class="mono">—</dd></div>
@@ -115,6 +139,19 @@
           <span id="zp-conn-dot" class="conn-dot"></span>
           <span id="zp-conn-text">Consultando…</span>
         </div>
+
+        <!-- Guia de resolução (animado) -->
+        <div id="zp-guide" class="zp-guide hidden">
+          <div class="guide-head">
+            <span id="guide-title">Como resolver</span>
+            <button id="guide-toggle" class="guide-toggle">ver ▾</button>
+          </div>
+          <div id="guide-body" class="guide-body">
+            <div id="guide-anim" class="guide-anim"></div>
+            <ol id="guide-steps" class="guide-steps"></ol>
+          </div>
+        </div>
+
         <div class="info-actions">
           <button id="zp-refresh" class="panel-action">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
@@ -122,43 +159,110 @@
           </button>
           <button id="zp-open-web" class="panel-action accent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg>
-            Interface web da impressora
+            Acessar interface web
           </button>
-          <button id="zp-calibrate" class="panel-action">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-            Calibrar sensores
+          <div class="quick-grid">
+            <button id="zp-calibrate" class="panel-action compact">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+              Calibrar
+            </button>
+            <button id="zp-headtest" class="panel-action compact">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.3L4.7 18a2 2 0 001.8 3h11a2 2 0 001.8-3L14 9.3V3"/></svg>
+              Teste cabeça
+            </button>
+          </div>
+        </div>
+
+        <!-- Ações avançadas -->
+        <div class="adv-section">
+          <button id="adv-toggle" class="adv-toggle">
+            <span>Ações avançadas &amp; comandos</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
           </button>
-          <button id="zp-headtest" class="panel-action">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.3L4.7 18a2 2 0 001.8 3h11a2 2 0 001.8-3L14 9.3V3"/></svg>
-            Teste de cabeça
-          </button>
+          <div id="adv-body" class="adv-body">
+            <div class="adv-grid">
+              <button id="adv-zt421" class="side-btn indigo">Config ZT421</button>
+              <button id="adv-factory" class="side-btn orange">Restaurar Fábrica</button>
+            </div>
+            <label class="section-label">Enviar comando ZPL</label>
+            <textarea id="adv-cmd" class="side-input mono w-full" rows="3" placeholder="~HS  •  ^XA...^XZ  •  ! U1 getvar &quot;device.product_name&quot;"></textarea>
+            <div class="adv-cmd-row">
+              <div class="quick-cmds">
+                <button class="chip-cmd" data-cmd="~HS">~HS</button>
+                <button class="chip-cmd" data-cmd="~JC">~JC</button>
+                <button class="chip-cmd" data-cmd="~PP">~PP</button>
+                <button class="chip-cmd" data-cmd="~PS">~PS</button>
+              </div>
+              <button id="adv-send" class="side-btn terminal mono">Enviar &gt;_</button>
+            </div>
+            <div id="adv-reply" class="adv-reply hidden"></div>
+          </div>
         </div>
       </aside>
     </div>
   </div>
 
+  <!-- ===================== FORMULÁRIO DE IMPRESSORA ===================== -->
+  <div id="printer-form-modal" class="modal-backdrop hidden">
+    <div class="form-card">
+      <button id="pf-close" class="zebra-close" title="Fechar">✕</button>
+      <h2 id="pf-title">Adicionar impressora</h2>
+      <div class="form-grid">
+        <label>Nome <input id="pf-name" type="text" class="side-input" placeholder="Ex.: MIC02094"></label>
+        <label>Departamento <input id="pf-department" type="text" class="side-input" placeholder="Ex.: Microbiologia"></label>
+        <label>SELB <input id="pf-selb" type="text" class="side-input" placeholder="Ex.: ZT230..."></label>
+        <label>Endereço IP <input id="pf-ip" type="text" class="side-input mono" placeholder="172.19.114.xx"></label>
+        <label>Andar
+          <select id="pf-floor" class="side-input">
+            <option value="1">1º Andar</option>
+            <option value="2">2º Andar</option>
+          </select>
+        </label>
+        <label class="full">Observações <textarea id="pf-observations" class="side-input" rows="2" placeholder="Opcional"></textarea></label>
+      </div>
+      <div class="pf-pos-row">
+        <span>Posição no mapa:</span>
+        <code id="pf-pos" class="mono">—</code>
+        <button id="pf-pick" class="mini-text-btn">reposicionar no mapa</button>
+      </div>
+      <div class="pf-actions">
+        <button id="pf-cancel" class="side-btn dark">Cancelar</button>
+        <button id="pf-save" class="side-btn sky">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-notification" class="toast"></div>
 
-  <!-- Janela flutuante (navegador remoto) -->
+  <!-- ===================== NAVEGADOR REMOTO (PROXY) ===================== -->
   <div id="floating-window" class="floating-window hidden">
       <div id="floating-header" class="floating-header">
           <div class="floating-controls">
               <button class="win-btn btn-close" id="win-close" title="Fechar"></button>
-              <button class="win-btn btn-min"></button>
-              <button class="win-btn btn-max"></button>
+              <button class="win-btn btn-min" id="win-min" title="Minimizar"></button>
+              <button class="win-btn btn-max" id="win-max" title="Maximizar"></button>
           </div>
           <span id="floating-title" class="floating-title">Navegador</span>
           <div style="width:40px"></div>
       </div>
       <div class="browser-bar">
+          <button id="win-back" title="Voltar">‹</button>
           <button id="win-reload" title="Recarregar">↻</button>
-          <input type="text" id="browser-url" readonly value="...">
+          <input type="text" id="browser-url" placeholder="ip ou url — Enter para ir">
+          <button id="win-go" title="Ir">→</button>
       </div>
       <div class="browser-content">
-          <iframe id="interface-frame"></iframe>
-          <div id="browser-loader" class="hidden">
-              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-400 mb-2"></div>
-              <span class="text-sm text-slate-400">Conectando...</span>
+          <iframe id="interface-frame" sandbox="allow-forms allow-scripts allow-same-origin allow-popups"></iframe>
+          <div id="browser-loader" class="browser-loader hidden">
+              <div class="loader-ring"></div>
+              <span id="browser-loader-text">Conectando pelo túnel…</span>
+          </div>
+          <div id="browser-transition" class="browser-transition hidden">
+              <div class="bt-core">
+                  <div class="bt-zebra">ZEBRA</div>
+                  <div class="bt-beam"></div>
+                  <div class="bt-label">abrindo interface web…</div>
+              </div>
           </div>
       </div>
   </div>
@@ -190,7 +294,7 @@
 
         <div id="panel-buttons">
             <button id="btn-status-panel" class="side-btn blue">Status</button>
-            <button id="btn-load-factory-panel" class="side-btn orange">Factory</button>
+            <button id="btn-open-web-panel" class="side-btn sky">Interface</button>
             <button id="btn-restart-panel" class="side-btn red">Reiniciar</button>
             <button id="btn-zt421-panel" class="side-btn indigo">ZT421</button>
             <button id="btn-calibrate-panel" class="side-btn green">Calibrar</button>
@@ -214,6 +318,6 @@
   </aside>
 
   <script type="module" src="./main.js"></script>
-  <footer class="app-footer"><a href="#" target="_blank">Rastreamento</a></footer>
+  <footer class="app-footer"><a href="https://www.siterastreio.com.br/" target="_blank" rel="noopener">Rastreamento</a></footer>
 </body>
 </html>

@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB1IF4Bt_g9jOdJbssEszdeZ2-3FJ2JsPY",
@@ -13,6 +13,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const configDocRef = doc(db, "system_config", "api_settings");
+const configDocRef   = doc(db, "system_config", "api_settings");
+const printersDocRef = doc(db, "system_config", "map_printers");
 
-export { db, configDocRef, onSnapshot, setDoc };
+export { db, configDocRef, printersDocRef, onSnapshot, setDoc, getDoc };

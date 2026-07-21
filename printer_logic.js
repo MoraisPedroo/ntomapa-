@@ -93,6 +93,31 @@ export async function fetchPrinterStatus(ip, apiBaseUrl) {
 }
 
 /**
+ * Envia um comando ZPL e solicita a resposta do equipamento (expect_reply).
+ * Retorna { ok, reply, error }.
+ */
+export async function sendCommandWithReply(cmd, actionName, ip, apiBaseUrl) {
+    if (!ip) return { ok: false, error: 'IP inválido.' };
+    if (!cmd || !cmd.trim()) return { ok: false, error: 'Comando vazio.' };
+    logPanel(`${actionName} (c/ resposta) -> ${ip}`);
+    try {
+        const res = await fetch(apiBaseUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip, cmd, expect_reply: true })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.success) {
+            logPanel(`${actionName}: ok${json.reply ? ' (resposta recebida)' : ''}.`);
+            return { ok: true, reply: json.reply || '' };
+        }
+        return { ok: false, error: json.error || `HTTP ${res.status}` };
+    } catch (err) {
+        return { ok: false, error: 'Erro de conexão com a API.' };
+    }
+}
+
+/**
  * Envia um comando ZPL bruto para a impressora via túnel.
  * Retorna true em caso de sucesso.
  */
