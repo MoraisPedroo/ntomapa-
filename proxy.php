@@ -667,7 +667,7 @@ function zebra_info($ip) {
    (ZebraNet PS: /server/JOBLOG.htm, TP-LINK: /JobLog.HTM, etc.);
    se não achar, tenta o odômetro por SGD na porta 9100. */
 function device_counter($ip, $customPath = '') {
-    $out = ['ip' => $ip, 'jobs' => null, 'uptime' => null, 'source' => null, 'found_path' => null];
+    $out = ['ip' => $ip, 'jobs' => null, 'uptime' => null, 'source' => null, 'found_path' => null, 'v' => 4, 'tried' => []];
     $paths = [];
     if ($customPath !== '') $paths[] = $customPath;
     foreach (['/server/JOBLOG.htm', '/JobLog.HTM', '/joblog.htm', '/JOBLOG.HTM', '/server/joblog.htm'] as $pp) {
@@ -675,17 +675,23 @@ function device_counter($ip, $customPath = '') {
     }
     foreach ($paths as $path) {
         $web = http_request('http://' . $ip . $path);
-        if ($web['error'] !== null || $web['status'] < 200 || $web['status'] >= 400) continue;
-        $body = $web['body'];
-        if (preg_match('~Total\s+Jobs\s+Printed:.*?(\d[\d.,]*)~is', $body, $m)) {
-            $out['jobs'] = (int)preg_replace('/\D/', '', $m[1]);
-            if (preg_match('~System\s+Up\s+Time:\s*(?:<[^>]*>\s*)*([0-9][^<]*)~i', $body, $u)) $out['uptime'] = trim($u[1]);
-            $out['source'] = 'web'; $out['found_path'] = $path;
-            return $out;
+        $rec = ['path' => $path, 'status' => $web['status'], 'err' => $web['error'], 'matched' => false];
+        if ($web['error'] === null && $web['status'] >= 200 && $web['status'] < 400) {
+            $body = $web['body'];
+            $rec['has_label'] = (stripos($body, 'Total Jobs Printed') !== false);
+            if (preg_match('~Total\s+Jobs\s+Printed[:\s]*(?:<[^>]*>\s*)*(\d[\d.,]*)~is', $body, $m)) {
+                $out['jobs'] = (int)preg_replace('/\D/', '', $m[1]);
+                if (preg_match('~System\s+Up\s+Time[:\s]*(?:<[^>]*>\s*)*([0-9][^<]*)~i', $body, $u)) $out['uptime'] = trim($u[1]);
+                $out['source'] = 'web'; $out['found_path'] = $path;
+                $rec['matched'] = true; $out['tried'][] = $rec;
+                return $out;
+            }
         }
+        $out['tried'][] = $rec;
     }
     // fallback: odômetro por SGD
     $r = send_raw_tcp($ip, '! U1 getvar "odometer.total_label_count"' . "\r\n", 3, true, 1.2);
+    $out['tried'][] = ['path' => 'sgd:odometer.total_label_count', 'reply' => isset($r['reply']) ? trim($r['reply']) : null, 'err' => $r['error'] ?? null];
     if (($r['ok'] ?? false) && trim($r['reply']) !== '') {
         $val = preg_replace('/\D/', '', $r['reply']);
         if ($val !== '') { $out['jobs'] = (int)$val; $out['source'] = 'sgd'; }

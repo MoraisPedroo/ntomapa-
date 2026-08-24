@@ -112,21 +112,33 @@ export async function fetchPrinterStatus(ip, apiBaseUrl) {
  * Devolve { jobs, uptime, source, foundPath }.
  */
 export async function fetchCounter(ip, apiBaseUrl, knownPath) {
-    if (!ip) return { jobs: null };
+    if (!ip) return { jobs: null, debug: 'IP vazio' };
+    const pathParam = knownPath ? `&path=${encodeURIComponent(knownPath)}` : '';
+    const url = `${apiBaseUrl}?action=counter&ip=${encodeURIComponent(ip)}${pathParam}`;
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 9000);
     try {
-        const pathParam = knownPath ? `&path=${encodeURIComponent(knownPath)}` : '';
-        const res = await fetch(`${apiBaseUrl}?action=counter&ip=${encodeURIComponent(ip)}${pathParam}`, { cache: 'no-store', signal: controller.signal });
+        const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
         clearTimeout(t);
         const ct = (res.headers.get('content-type') || '').toLowerCase();
-        if (!ct.includes('application/json')) return { jobs: null };
-        const p = await res.json().catch(() => null);
-        if (!p) return { jobs: null };
-        return { jobs: (p.jobs === null || p.jobs === undefined) ? null : p.jobs, uptime: p.uptime || null, source: p.source || null, foundPath: p.found_path || null };
+        const text = await res.text();
+        let p = null;
+        if (ct.includes('application/json')) { try { p = JSON.parse(text); } catch (_) {} }
+
+        const debug =
+            `[DIAGNÓSTICO CONTADOR]\n` +
+            `URL: ${url}\n` +
+            `HTTP ${res.status} · Content-Type: ${ct || '(vazio)'}\n` +
+            (p && p.v ? `proxy v${p.v} · action=counter OK\n` : `AVISO: resposta não é do proxy novo (talvez proxy.php desatualizado)\n`) +
+            `RESPOSTA:\n${text.slice(0, 900)}`;
+
+        if (p && p.jobs !== null && p.jobs !== undefined) {
+            return { jobs: p.jobs, uptime: p.uptime || null, source: p.source || null, foundPath: p.found_path || null, debug };
+        }
+        return { jobs: null, debug };
     } catch (e) {
         clearTimeout(t);
-        return { jobs: null, error: true };
+        return { jobs: null, error: true, debug: `[DIAGNÓSTICO CONTADOR]\nURL: ${url}\nERRO: ${e.name === 'AbortError' ? 'timeout (9s)' : e.message}` };
     }
 }
 

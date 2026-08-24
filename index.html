@@ -140,22 +140,28 @@
           <span id="zp-conn-text">Consultando…</span>
         </div>
 
-        <!-- Contador de impressão -->
-        <div id="zp-counter" class="counter-card">
-          <div class="counter-head">
-            <span class="counter-title">
+        <!-- Contador de impressão (visor digital) -->
+        <div id="zp-counter" class="counter-display">
+          <div class="cd-scan"></div>
+          <div class="cd-head">
+            <span class="cd-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V4h12v5M6 18h12v2H6zM6 14h12"/><rect x="4" y="9" width="16" height="8" rx="1.5"/></svg>
-              Contador de impressão
+              CONTADOR
             </span>
-            <span id="counter-live" class="counter-live" title="Atualiza a cada 5s">● ao vivo</span>
+            <span id="counter-live" class="cd-live" title="Atualiza a cada 5s">● LIVE</span>
           </div>
-          <div class="counter-value-row">
-            <span id="counter-value" class="counter-value">—</span>
-            <span class="counter-unit">impressos</span>
+          <div class="cd-value-row">
+            <span id="counter-value" class="cd-value">----</span>
+            <span class="cd-unit">etiquetas<br>impressas</span>
           </div>
-          <div class="counter-meta">
-            <div class="counter-uptime"><span>Ligada há</span><b id="counter-uptime">—</b></div>
-            <div class="counter-updated"><span>Atualizado</span><b id="counter-updated">—</b></div>
+          <div class="cd-meta">
+            <div><span>LIGADA HÁ</span><b id="counter-uptime">—</b></div>
+            <div><span>ATUALIZADO</span><b id="counter-updated">—</b></div>
+          </div>
+          <button id="counter-diag-btn" class="cd-diag-btn hidden">ⓘ diagnóstico</button>
+          <div id="counter-diag" class="cd-diag hidden">
+            <textarea id="counter-diag-text" readonly rows="6"></textarea>
+            <button id="counter-diag-copy" class="cd-diag-copy">Copiar diagnóstico</button>
           </div>
         </div>
 

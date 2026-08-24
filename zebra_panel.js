@@ -290,8 +290,12 @@ function renderCounter(res) {
     const updEl = $('counter-updated');
     const card = $('zp-counter');
     if (!valEl) return;
-
     const liveEl = $('counter-live');
+    const diagBtn = $('counter-diag-btn');
+
+    // guarda o diagnóstico para o botão "copiar"
+    if (res && res.debug) $('counter-diag-text').value = res.debug;
+
     if (res && res.jobs !== null && res.jobs !== undefined) {
         const num = Number(res.jobs).toLocaleString('pt-BR');
         if (valEl.textContent !== num) {
@@ -301,14 +305,17 @@ function renderCounter(res) {
         upEl.textContent = formatUptime(res.uptime) || '—';
         updEl.textContent = new Date().toLocaleTimeString('pt-BR');
         card.classList.remove('counter-off');
-        if (liveEl) liveEl.textContent = '● ao vivo';
+        if (liveEl) liveEl.textContent = '● LIVE';
+        if (diagBtn) diagBtn.classList.add('hidden');
+        $('counter-diag').classList.add('hidden');
         lastJobs = res.jobs;
     } else {
-        valEl.textContent = '—';
+        valEl.textContent = '----';
         upEl.textContent = '—';
         updEl.textContent = res && res.error ? 'sem conexão' : 'indisponível';
         card.classList.add('counter-off');
-        if (liveEl) liveEl.textContent = res && res.error ? '○ sem conexão' : '○ indisponível';
+        if (liveEl) liveEl.textContent = res && res.error ? '○ OFFLINE' : '○ N/D';
+        if (diagBtn && res && res.debug) diagBtn.classList.remove('hidden'); // deixa o diagnóstico à mão
     }
 }
 
@@ -496,6 +503,14 @@ function init() {
     // editar / excluir
     $('zp-edit').addEventListener('click', () => { if (current && handlers.onEdit) handlers.onEdit(current); });
     $('zp-delete').addEventListener('click', () => { if (current && handlers.onDelete) handlers.onDelete(current); });
+
+    // diagnóstico do contador (mostrar / copiar)
+    $('counter-diag-btn').addEventListener('click', () => $('counter-diag').classList.toggle('hidden'));
+    $('counter-diag-copy').addEventListener('click', async () => {
+        const txt = $('counter-diag-text').value;
+        try { await navigator.clipboard.writeText(txt); showToast('Diagnóstico copiado!'); }
+        catch (_) { $('counter-diag-text').select(); document.execCommand('copy'); showToast('Diagnóstico copiado!'); }
+    });
 
     // guia colapsável
     document.getElementById('guide-toggle').addEventListener('click', (e) => {
