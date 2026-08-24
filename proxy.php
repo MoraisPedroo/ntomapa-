@@ -383,9 +383,36 @@ function render_login_page($url, $wwwAuth, $error = '') {
       . "<button type='submit'>Entrar</button></form></body></html>";
 }
 
-/* Injeta <base> (para URLs relativas resolverem via proxy), tira target=_top
-   e injeta o reporter de URL. Não reescreve o resto — o <base> cuida de tudo,
-   inclusive do que o JavaScript gera em tempo real. */
+/* Converte uma URL ABSOLUTA (/, //host ou http://host) para o formato do
+   proxy por caminho. Devolve null se a URL for relativa (o <base> resolve). */
+function pb_abs($u, $curHost, $curScheme) {
+    $u = trim($u);
+    if ($u === '' || preg_match('~^(javascript:|mailto:|tel:|data:|about:|#)~i', $u)) return null;
+    if (preg_match('~^(https?)://([^/]+)(/[^\s]*)?$~i', $u, $m)) {
+        return self_abs() . '/' . strtolower($m[1]) . '/' . $m[2] . (isset($m[3]) && $m[3] !== '' ? $m[3] : '/');
+    }
+    if (substr($u, 0, 2) === '//') return self_abs() . '/' . $curScheme . '/' . substr($u, 2);
+    if ($u[0] === '/') return self_abs() . '/' . $curScheme . '/' . $curHost . $u;
+    return null; // relativa -> deixa o <base> resolver
+}
+function _rewrite_abs_attr($attrs, $name, $curHost, $curScheme) {
+    $re = '#(\s' . $name . '\s*=\s*)("([^"]*)"|\'([^\']*)\'|([^\s>]+))#i';
+    return preg_replace_callback($re, function ($a) use ($curHost, $curScheme) {
+        $val = (($a[3] ?? '') !== '') ? $a[3] : ((($a[4] ?? '') !== '') ? $a[4] : ($a[5] ?? ''));
+        $pb = pb_abs($val, $curHost, $curScheme);
+        return $pb === null ? $a[0] : $a[1] . '"' . htmlspecialchars($pb) . '"';
+    }, $attrs);
+}
+function rewrite_css_abs($css, $curHost, $curScheme) {
+    return preg_replace_callback('#url\(\s*(["\']?)([^"\')]+)\1\s*\)#i', function ($m) use ($curHost, $curScheme) {
+        $pb = pb_abs(trim($m[2]), $curHost, $curScheme);
+        return $pb === null ? $m[0] : 'url(' . $pb . ')';
+    }, $css);
+}
+
+/* Injeta <base> (URLs relativas resolvem via proxy), reescreve URLs ABSOLUTAS
+   (que o <base> não pega), remove target=_top, e injeta um shim que trata
+   window.open com caminho absoluto + o reporter de URL. */
 function inject_base($html, $device, $scheme) {
     $p = parse_url($device);
     $host = $p['host'] ?? '';
@@ -393,28 +420,47 @@ function inject_base($html, $device, $scheme) {
     $path = $p['path'] ?? '/';
     $dir = preg_replace('#/[^/]*$#', '/', $path);
     if ($dir === '') $dir = '/';
-    $baseHref = self_abs() . '/' . $scheme . '/' . $host . $dir;
-    $baseTag = '<base href="' . htmlspecialchars($baseHref) . '">';
+    $baseTag = '<base href="' . htmlspecialchars(self_abs() . '/' . $scheme . '/' . $host . $dir) . '">';
 
-    // remove qualquer <base> próprio da página (o nosso precisa valer)
+    // protege comentários/scripts/estilos da reescrita
+    $store = [];
+    $stash = function ($s) use (&$store) { $k = "\x01P" . count($store) . "\x01"; $store[$k] = $s; return $k; };
+    $html = preg_replace_callback('#<!--.*?-->#s', function ($m) use ($stash) { return $stash($m[0]); }, $html);
+    $html = preg_replace_callback('#<script\b([^>]*)>(.*?)</script>#is', function ($m) use ($stash, $host, $scheme) {
+        return $stash('<script' . _rewrite_abs_attr($m[1], 'src', $host, $scheme) . '>' . $m[2] . '</script>');
+    }, $html);
+    $html = preg_replace_callback('#(<style\b[^>]*>)(.*?)(</style>)#is', function ($m) use ($stash, $host, $scheme) {
+        return $stash($m[1] . rewrite_css_abs($m[2], $host, $scheme) . $m[3]);
+    }, $html);
     $html = preg_replace('~<base\b[^>]*>~i', '', $html);
 
-    // insere o <base> logo após <head> (antes de qualquer <link>/<script>)
-    if (preg_match('~<head[^>]*>~i', $html)) {
-        $html = preg_replace('~(<head[^>]*>)~i', '$1' . $baseTag, $html, 1);
-    } elseif (preg_match('~<html[^>]*>~i', $html)) {
-        $html = preg_replace('~(<html[^>]*>)~i', '$1' . $baseTag, $html, 1);
-    } else {
-        $html = $baseTag . $html;
-    }
+    // reescreve SÓ as URLs absolutas nas tags; remove target
+    $html = preg_replace_callback('#<([a-zA-Z][a-zA-Z0-9]*)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>#s', function ($m) use ($host, $scheme) {
+        $tag = strtolower($m[1]); $attrs = $m[2];
+        $doc   = ['a' => 'href', 'area' => 'href', 'form' => 'action', 'frame' => 'src', 'iframe' => 'src'];
+        $asset = ['img' => 'src', 'link' => 'href', 'embed' => 'src', 'source' => 'src', 'audio' => 'src', 'video' => 'src', 'track' => 'src'];
+        if (isset($doc[$tag]))   $attrs = _rewrite_abs_attr($attrs, $doc[$tag], $host, $scheme);
+        if (isset($asset[$tag])) $attrs = _rewrite_abs_attr($attrs, $asset[$tag], $host, $scheme);
+        if ($tag === 'input' && preg_match('#type\s*=\s*["\']?\s*image#i', $attrs)) $attrs = _rewrite_abs_attr($attrs, 'src', $host, $scheme);
+        if (preg_match('#\sbackground\s*=#i', $attrs)) $attrs = _rewrite_abs_attr($attrs, 'background', $host, $scheme);
+        if (in_array($tag, ['a', 'area', 'form'], true)) $attrs = preg_replace('~\starget\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)~i', '', $attrs);
+        return '<' . $m[1] . $attrs . '>';
+    }, $html);
 
-    // links/forms com target=_top/_parent quebrariam para fora do iframe -> remove
-    $html = preg_replace('~(<(?:a|form)\b[^>]*?)\s+target\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)~i', '$1', $html);
+    if (!empty($store)) $html = strtr($html, $store);
 
-    // reporter da URL real p/ a barra de endereço do app
-    $inject = '<script>(function(){try{parent.postMessage({type:"PROXY_URL",url:' . json_encode($device) . '},"*");}catch(e){}})();</script>';
-    if (stripos($html, '</body>') !== false) $html = preg_replace('#</body>#i', $inject . '</body>', $html, 1);
-    else $html .= $inject;
+    // shim de runtime: window.open com caminho absoluto + reporter de URL
+    $shim = '<script>(function(){var PB=' . json_encode(self_abs()) . ',H=' . json_encode($host) . ',S=' . json_encode($scheme) . ';'
+          . 'function fx(u){if(typeof u!=="string")return u;var m=u.match(/^(https?:)?\\/\\/([^\\/]+)(\\/[\\s\\S]*)?$/i);'
+          . 'if(m)return PB+"/"+((m[1]||S+":").replace(":",""))+"/"+m[2]+(m[3]||"/");'
+          . 'if(u.charAt(0)==="/")return PB+"/"+S+"/"+H+u;return u;}'
+          . 'var _o=window.open;window.open=function(u,n,f){return _o.call(window,fx(u),n,f);};'
+          . 'try{parent.postMessage({type:"PROXY_URL",url:' . json_encode($device) . '},"*");}catch(e){}})();</script>';
+
+    $headInject = $baseTag . $shim;
+    if (preg_match('~<head[^>]*>~i', $html)) $html = preg_replace('~(<head[^>]*>)~i', '$1' . $headInject, $html, 1);
+    elseif (preg_match('~<html[^>]*>~i', $html)) $html = preg_replace('~(<html[^>]*>)~i', '$1' . $headInject, $html, 1);
+    else $html = $headInject . $html;
 
     return $html;
 }
@@ -442,8 +488,15 @@ function output_render_pathbased($res, $scheme) {
         echo inject_base($res['body'], $res['effective_url'], $scheme);
         exit;
     }
-    // CSS/JS/imagens: entrega cru com o tipo correto (as url() do CSS já
-    // resolvem sozinhas pelo caminho — não precisa reescrever)
+    // CSS: url() relativas resolvem sozinhas pelo caminho; só reescreve as absolutas
+    if (stripos($guess, 'text/css') !== false) {
+        $cp = parse_url($res['effective_url']);
+        $chost = $cp['host'] ?? ''; if (isset($cp['port'])) $chost .= ':' . $cp['port'];
+        header('Content-Type: text/css');
+        echo rewrite_css_abs($res['body'], $chost, $cp['scheme'] ?? 'http');
+        exit;
+    }
+    // JS/imagens/fontes: cru com o tipo correto
     header('Content-Type: ' . $guess);
     echo $res['body'];
     exit;
