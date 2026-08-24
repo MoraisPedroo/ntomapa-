@@ -663,14 +663,16 @@ function zebra_info($ip) {
     return $out;
 }
 
-/* Contador de impressão + uptime — raspa a página de "Print Job Log"
-   (ZebraNet PS: /server/JOBLOG.htm, TP-LINK: /JobLog.HTM, etc.);
-   se não achar, tenta o odômetro por SGD na porta 9100. */
+/* Contador FIXO (vitalício) de etiquetas — o "NONRESET CNTR ... LABELS" da
+   página config.html da Zebra; fallback pelo odômetro SGD na porta 9100.
+   Também tenta o uptime por SGD (device.uptime). */
 function device_counter($ip, $customPath = '') {
-    $out = ['ip' => $ip, 'jobs' => null, 'uptime' => null, 'source' => null, 'found_path' => null, 'v' => 4, 'tried' => []];
+    $out = ['ip' => $ip, 'jobs' => null, 'uptime' => null, 'source' => null, 'found_path' => null, 'v' => 5, 'tried' => []];
+
+    // 1) config.html — contador fixo NONRESET CNTR (LABELS)
     $paths = [];
     if ($customPath !== '') $paths[] = $customPath;
-    foreach (['/server/JOBLOG.htm', '/JobLog.HTM', '/joblog.htm', '/JOBLOG.HTM', '/server/joblog.htm'] as $pp) {
+    foreach (['/config.html', '/CONFIG.HTM', '/printer/config.html'] as $pp) {
         if (!in_array($pp, $paths, true)) $paths[] = $pp;
     }
     foreach ($paths as $path) {
@@ -678,25 +680,36 @@ function device_counter($ip, $customPath = '') {
         $rec = ['path' => $path, 'status' => $web['status'], 'err' => $web['error'], 'matched' => false];
         if ($web['error'] === null && $web['status'] >= 200 && $web['status'] < 400) {
             $body = $web['body'];
-            $rec['has_label'] = (stripos($body, 'Total Jobs Printed') !== false);
-            if (preg_match('~Total\s+Jobs\s+Printed[:\s]*(?:<[^>]*>\s*)*(\d[\d.,]*)~is', $body, $m)) {
+            $rec['has_nonreset'] = (stripos($body, 'NONRESET CNTR') !== false);
+            if (preg_match('~(\d[\d.,]*)\s*LABELS\s+NONRESET\s+CNTR~i', $body, $m)) {
                 $out['jobs'] = (int)preg_replace('/\D/', '', $m[1]);
-                if (preg_match('~System\s+Up\s+Time[:\s]*(?:<[^>]*>\s*)*([0-9][^<]*)~i', $body, $u)) $out['uptime'] = trim($u[1]);
-                $out['source'] = 'web'; $out['found_path'] = $path;
-                $rec['matched'] = true; $out['tried'][] = $rec;
+                $out['source'] = 'config'; $out['found_path'] = $path; $rec['matched'] = true;
+                $out['tried'][] = $rec;
+                $out['uptime'] = sgd_uptime($ip);
                 return $out;
             }
         }
         $out['tried'][] = $rec;
     }
-    // fallback: odômetro por SGD
+
+    // 2) SGD: odômetro de etiquetas vitalício (= NONRESET CNTR)
     $r = send_raw_tcp($ip, '! U1 getvar "odometer.total_label_count"' . "\r\n", 3, true, 1.2);
     $out['tried'][] = ['path' => 'sgd:odometer.total_label_count', 'reply' => isset($r['reply']) ? trim($r['reply']) : null, 'err' => $r['error'] ?? null];
     if (($r['ok'] ?? false) && trim($r['reply']) !== '') {
         $val = preg_replace('/\D/', '', $r['reply']);
-        if ($val !== '') { $out['jobs'] = (int)$val; $out['source'] = 'sgd'; }
+        if ($val !== '') { $out['jobs'] = (int)$val; $out['source'] = 'sgd'; $out['uptime'] = sgd_uptime($ip); }
     }
     return $out;
+}
+
+/* Uptime da impressora por SGD (device.uptime). Retorna string ou null. */
+function sgd_uptime($ip) {
+    $r = send_raw_tcp($ip, '! U1 getvar "device.uptime"' . "\r\n", 3, true, 1.2);
+    if (($r['ok'] ?? false) && trim($r['reply']) !== '') {
+        $v = trim($r['reply'], "\"\r\n ");
+        return $v !== '' ? $v : null;
+    }
+    return null;
 }
 
 function ping_printer($ip) {

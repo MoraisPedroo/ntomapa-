@@ -15,6 +15,7 @@ let pollTimer = null;
 let counterTimer = null;
 let counterPath = '';      // caminho da página de contador que funcionou
 let counterFetching = false;
+let counterValue = null;   // contador fixo (etiquetas vitalícias) mostrado no LCD
 let lastJobs = null;
 let busy = false;
 let fetching = false;
@@ -150,7 +151,17 @@ function lcdStatusbar(flags = {}) {
 }
 function lcdFooter(chip) {
     const time = new Date().toLocaleTimeString('pt-BR');
-    return `<div class="lcd-footer"><span class="lcd-chip">${chip}</span><span>${current ? current.ip : ''} · ${time}</span></div>`;
+    const n = (counterValue !== null && counterValue !== undefined) ? Number(counterValue).toLocaleString('pt-BR') : '—';
+    return `<div class="lcd-footer">
+        <span class="lcd-chip">${chip}</span>
+        <span class="lcd-foot-right">
+            <span class="lcd-ctr" title="Total de etiquetas impressas (contador vitalício)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4L12 22l-9-9V4a1 1 0 011-1h8z"/><circle cx="7.5" cy="7.5" r="1.4" fill="currentColor"/></svg>
+                <b id="lcd-ctr-val">${n}</b>
+            </span>
+            <span class="lcd-time">${time}</span>
+        </span>
+    </div>`;
 }
 function lcdBody(iconHTML, title, sub) {
     return `<div class="lcd-body">
@@ -308,6 +319,14 @@ function renderCounter(res) {
         if (liveEl) liveEl.textContent = '● LIVE';
         if (diagBtn) diagBtn.classList.add('hidden');
         $('counter-diag').classList.add('hidden');
+        // reflete o valor dentro do LCD verde
+        counterValue = res.jobs;
+        const lcdCtr = $('lcd-ctr-val');
+        if (lcdCtr && lcdCtr.textContent !== num) {
+            lcdCtr.textContent = num;
+            const strip = lcdCtr.closest('.lcd-ctr');
+            if (strip) { strip.classList.remove('pulse'); void strip.offsetWidth; strip.classList.add('pulse'); }
+        }
         lastJobs = res.jobs;
     } else {
         valEl.textContent = '----';
@@ -452,6 +471,7 @@ export function openZebraPanel(printer, apiGetter, opts = {}) {
     // reseta o contador
     counterPath = '';
     lastJobs = null;
+    counterValue = null;
     renderCounter(null);
     $('counter-updated').textContent = 'consultando…';
 

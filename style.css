@@ -299,8 +299,15 @@ body{
 .lcd-title{ font-size:1.1rem; font-weight:700; letter-spacing:.08em; line-height:1.2; }
 .lcd-sub{ font-family:'Inter',sans-serif; font-size:.72rem; opacity:.82; max-width:36ch; line-height:1.45; }
 
-.lcd-footer{ display:flex; align-items:center; justify-content:space-between; padding:6px 11px; background:rgba(0,0,0,.25); z-index:2; font-size:.58rem; letter-spacing:.14em; color:rgba(255,255,255,.6); }
-.lcd-chip{ border:1px solid currentColor; border-radius:4px; padding:1.5px 7px; font-weight:600; }
+.lcd-footer{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 11px; background:rgba(0,0,0,.25); z-index:2; font-size:.58rem; letter-spacing:.14em; color:rgba(255,255,255,.6); }
+.lcd-chip{ border:1px solid currentColor; border-radius:4px; padding:1.5px 7px; font-weight:600; flex-shrink:0; }
+.lcd-foot-right{ display:flex; align-items:center; gap:10px; }
+.lcd-ctr{ display:inline-flex; align-items:center; gap:4px; color:rgba(255,255,255,.92); letter-spacing:0; }
+.lcd-ctr svg{ width:11px; height:11px; opacity:.85; }
+.lcd-ctr b{ font-weight:700; font-size:.72rem; font-variant-numeric:tabular-nums; text-shadow:0 0 6px rgba(255,255,255,.35); }
+.lcd-ctr.pulse b{ animation:lcdCtrPulse .5s ease; }
+@keyframes lcdCtrPulse{ 0%{ transform:scale(1); } 40%{ transform:scale(1.22); text-shadow:0 0 12px rgba(255,255,255,.9); } 100%{ transform:scale(1); } }
+.lcd-time{ opacity:.75; }
 
 .zt-lcd.lcd-ready{ background:linear-gradient(160deg,#04281f,#065f46); color:#d1fae5; }
 .zt-lcd.lcd-ready .lcd-icon{ color:#6ee7b7; }
