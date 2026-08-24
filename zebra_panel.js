@@ -1,9 +1,10 @@
-import { sendCommand, fetchPrinterStatus, sendCommandWithReply, STATE_LABELS } from './printer_logic.js';
+import { sendCommand, fetchPrinterStatus, sendCommandWithReply, fetchCounter, STATE_LABELS } from './printer_logic.js';
 import { showToast, logPanel } from './helpers.js';
 import { openBrowserWindow } from './browser_window.js';
 import { TESTE_CABECA, CALIBRAGEM } from './data.js';
 
 const POLL_MS = 8000;      // intervalo de telemetria com o painel aberto
+const COUNTER_MS = 5000;   // intervalo do contador de impressão
 const HOLD_MS = 1400;      // tempo segurando o botão de reiniciar
 const BOOT_MS = 9500;      // duração do POST simulado (acompanha a barra de boot)
 
@@ -11,6 +12,10 @@ let current = null;        // impressora aberta
 let getApi = () => '';     // getter do link da API
 let handlers = {};         // { onEdit, onDelete }
 let pollTimer = null;
+let counterTimer = null;
+let counterPath = '';      // caminho da página de contador que funcionou
+let counterFetching = false;
+let lastJobs = null;
 let busy = false;
 let fetching = false;
 let lastState = 'CONNECTING';
@@ -266,6 +271,64 @@ function startPolling() { stopPolling(); pollTimer = setInterval(refreshStatus, 
 function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
 /* ------------------------------------------------------------------
+   Contador de impressão
+------------------------------------------------------------------ */
+function formatUptime(s) {
+    if (!s) return null;
+    return String(s)
+        .replace(/\s*days?\s*/i, 'd ')
+        .replace(/\s*hours?\s*/i, 'h ')
+        .replace(/\s*mins?\s*/i, 'min ')
+        .replace(/\s*secs?\s*/i, 's')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function renderCounter(res) {
+    const valEl = $('counter-value');
+    const upEl = $('counter-uptime');
+    const updEl = $('counter-updated');
+    const card = $('zp-counter');
+    if (!valEl) return;
+
+    const liveEl = $('counter-live');
+    if (res && res.jobs !== null && res.jobs !== undefined) {
+        const num = Number(res.jobs).toLocaleString('pt-BR');
+        if (valEl.textContent !== num) {
+            valEl.textContent = num;
+            card.classList.remove('bump'); void card.offsetWidth; card.classList.add('bump'); // anima a troca
+        }
+        upEl.textContent = formatUptime(res.uptime) || '—';
+        updEl.textContent = new Date().toLocaleTimeString('pt-BR');
+        card.classList.remove('counter-off');
+        if (liveEl) liveEl.textContent = '● ao vivo';
+        lastJobs = res.jobs;
+    } else {
+        valEl.textContent = '—';
+        upEl.textContent = '—';
+        updEl.textContent = res && res.error ? 'sem conexão' : 'indisponível';
+        card.classList.add('counter-off');
+        if (liveEl) liveEl.textContent = res && res.error ? '○ sem conexão' : '○ indisponível';
+    }
+}
+
+async function refreshCounter() {
+    if (!current || counterFetching) return;
+    counterFetching = true;
+    const mySession = session;
+    const res = await fetchCounter(current.ip, getApi(), counterPath);
+    counterFetching = false;
+    if (mySession !== session || !current) return;
+    if (res.foundPath) counterPath = res.foundPath; // memoriza o caminho certo p/ os próximos
+    renderCounter(res);
+    // dispositivo sem contador (não é erro de rede): para de sondar para não pesar
+    // (ainda atualiza ao enviar um comando, que chama refreshCounter direto)
+    if ((res.jobs === null || res.jobs === undefined) && !res.error) stopCounterPoll();
+}
+function startCounterPoll() { stopCounterPoll(); counterTimer = setInterval(refreshCounter, COUNTER_MS); }
+function stopCounterPoll() { if (counterTimer) { clearInterval(counterTimer); counterTimer = null; } }
+
+/* ------------------------------------------------------------------
    Ações
 ------------------------------------------------------------------ */
 async function keyAction(cmd, label, refreshDelay = 1500) {
@@ -273,7 +336,7 @@ async function keyAction(cmd, label, refreshDelay = 1500) {
     const mySession = session;
     const ok = await sendCommand(cmd, label, current.ip, getApi());
     if (ok && mySession === session && current) {
-        setTimeout(() => { if (mySession === session) refreshStatus(); }, refreshDelay);
+        setTimeout(() => { if (mySession === session) { refreshStatus(); refreshCounter(); } }, refreshDelay);
     }
 }
 
@@ -354,7 +417,7 @@ async function sendAdvancedCommand() {
         reply.textContent = res.reply && res.reply.trim()
             ? '↩ ' + res.reply.trim()
             : '✓ Enviado (sem resposta do equipamento).';
-        setTimeout(refreshStatus, 1200);
+        setTimeout(() => { refreshStatus(); refreshCounter(); }, 1200);
     } else {
         reply.textContent = '✗ ' + (res.error || 'Falha no envio.');
     }
@@ -379,13 +442,21 @@ export function openZebraPanel(printer, apiGetter, opts = {}) {
     $('adv-cmd').value = '';
     $('zebra-modal').classList.remove('hidden');
 
+    // reseta o contador
+    counterPath = '';
+    lastJobs = null;
+    renderCounter(null);
+    $('counter-updated').textContent = 'consultando…';
+
     renderState('CONNECTING');
     refreshStatus();
     startPolling();
+    refreshCounter();
+    startCounterPoll();
 }
 
 export function closeZebraPanel() {
-    session++; stopPolling();
+    session++; stopPolling(); stopCounterPoll();
     current = null; busy = false; fetching = false;
     const modal = $('zebra-modal');
     if (modal) modal.classList.add('hidden');

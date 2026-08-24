@@ -108,6 +108,29 @@ export async function fetchPrinterStatus(ip, apiBaseUrl) {
 }
 
 /**
+ * Lê o contador de impressão (Total Jobs Printed) e o uptime do equipamento.
+ * Devolve { jobs, uptime, source, foundPath }.
+ */
+export async function fetchCounter(ip, apiBaseUrl, knownPath) {
+    if (!ip) return { jobs: null };
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 9000);
+    try {
+        const pathParam = knownPath ? `&path=${encodeURIComponent(knownPath)}` : '';
+        const res = await fetch(`${apiBaseUrl}?action=counter&ip=${encodeURIComponent(ip)}${pathParam}`, { cache: 'no-store', signal: controller.signal });
+        clearTimeout(t);
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!ct.includes('application/json')) return { jobs: null };
+        const p = await res.json().catch(() => null);
+        if (!p) return { jobs: null };
+        return { jobs: (p.jobs === null || p.jobs === undefined) ? null : p.jobs, uptime: p.uptime || null, source: p.source || null, foundPath: p.found_path || null };
+    } catch (e) {
+        clearTimeout(t);
+        return { jobs: null, error: true };
+    }
+}
+
+/**
  * Envia um comando ZPL e solicita a resposta do equipamento (expect_reply).
  * Retorna { ok, reply, error }.
  */

@@ -663,6 +663,36 @@ function zebra_info($ip) {
     return $out;
 }
 
+/* Contador de impressão + uptime — raspa a página de "Print Job Log"
+   (ZebraNet PS: /server/JOBLOG.htm, TP-LINK: /JobLog.HTM, etc.);
+   se não achar, tenta o odômetro por SGD na porta 9100. */
+function device_counter($ip, $customPath = '') {
+    $out = ['ip' => $ip, 'jobs' => null, 'uptime' => null, 'source' => null, 'found_path' => null];
+    $paths = [];
+    if ($customPath !== '') $paths[] = $customPath;
+    foreach (['/server/JOBLOG.htm', '/JobLog.HTM', '/joblog.htm', '/JOBLOG.HTM', '/server/joblog.htm'] as $pp) {
+        if (!in_array($pp, $paths, true)) $paths[] = $pp;
+    }
+    foreach ($paths as $path) {
+        $web = http_request('http://' . $ip . $path);
+        if ($web['error'] !== null || $web['status'] < 200 || $web['status'] >= 400) continue;
+        $body = $web['body'];
+        if (preg_match('~Total\s+Jobs\s+Printed:.*?(\d[\d.,]*)~is', $body, $m)) {
+            $out['jobs'] = (int)preg_replace('/\D/', '', $m[1]);
+            if (preg_match('~System\s+Up\s+Time:\s*(?:<[^>]*>\s*)*([0-9][^<]*)~i', $body, $u)) $out['uptime'] = trim($u[1]);
+            $out['source'] = 'web'; $out['found_path'] = $path;
+            return $out;
+        }
+    }
+    // fallback: odômetro por SGD
+    $r = send_raw_tcp($ip, '! U1 getvar "odometer.total_label_count"' . "\r\n", 3, true, 1.2);
+    if (($r['ok'] ?? false) && trim($r['reply']) !== '') {
+        $val = preg_replace('/\D/', '', $r['reply']);
+        if ($val !== '') { $out['jobs'] = (int)$val; $out['source'] = 'sgd'; }
+    }
+    return $out;
+}
+
 function ping_printer($ip) {
     $out = ['ip' => $ip];
     $start = microtime(true);
@@ -744,8 +774,9 @@ if ($method === 'POST') {
     if (!is_array($data)) $data = $_POST;
 
     $action = $data['action'] ?? null;
-    if ($action === 'status' && !empty($data['ip'])) send_json(device_status(trim($data['ip'])), 200);
-    if ($action === 'info'   && !empty($data['ip'])) send_json(zebra_info(trim($data['ip'])), 200);
+    if ($action === 'status'  && !empty($data['ip'])) send_json(device_status(trim($data['ip'])), 200);
+    if ($action === 'info'    && !empty($data['ip'])) send_json(zebra_info(trim($data['ip'])), 200);
+    if ($action === 'counter' && !empty($data['ip'])) send_json(device_counter(trim($data['ip']), trim($data['path'] ?? '')), 200);
 
     if (!empty($data['url'])) {
         $url = trim($data['url']); $m = strtoupper($data['method'] ?? 'POST');
@@ -776,9 +807,10 @@ if ($method === 'POST') {
 if ($method !== 'GET') send_json(['error' => 'Método não suportado.'], 405);
 
 $action = $_GET['action'] ?? null;
-if ($action === 'ping'   && !empty($_GET['ip'])) send_json(ping_printer(trim($_GET['ip'])), 200);
-if ($action === 'status' && !empty($_GET['ip'])) send_json(device_status(trim($_GET['ip'])), 200);
-if ($action === 'info'   && !empty($_GET['ip'])) send_json(zebra_info(trim($_GET['ip'])), 200);
+if ($action === 'ping'    && !empty($_GET['ip'])) send_json(ping_printer(trim($_GET['ip'])), 200);
+if ($action === 'status'  && !empty($_GET['ip'])) send_json(device_status(trim($_GET['ip'])), 200);
+if ($action === 'info'    && !empty($_GET['ip'])) send_json(zebra_info(trim($_GET['ip'])), 200);
+if ($action === 'counter' && !empty($_GET['ip'])) send_json(device_counter(trim($_GET['ip']), trim($_GET['path'] ?? '')), 200);
 
 // GET de formulário do dispositivo (destino nos campos escondidos __mp_url)
 if (!empty($_GET['__mp_url'])) {
