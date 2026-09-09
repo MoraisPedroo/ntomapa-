@@ -1,5 +1,5 @@
 import { configDocRef, onSnapshot, setDoc } from './firebaseConfig.js';
-import { TESTE_CABECA, CALIBRAGEM } from './data.js';
+import { TESTE_CABECA, CALIBRAGEM, ZT421_CONFIG } from './data.js';
 import { showToast, logPanel, debounce } from './helpers.js';
 import { fetchPrinterStatus, sendCommand, STATE_LABELS } from './printer_logic.js';
 import { openBrowserWindow, closeBrowserWindow, reloadBrowser, browserBack, navigateFromBar, setupDragLogic } from './browser_window.js';
@@ -116,8 +116,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return point;
     }
 
+    const MAP_VERSION = '3'; // aumente ao trocar a planta para furar o cache
     function updateMapImage() {
-        mapImage.src = currentFloor === 1 ? 'plantanto.jpg' : 'plantanto2.jpg';
+        mapImage.src = (currentFloor === 1 ? 'plantanto.jpg' : 'plantanto2.jpg') + '?v=' + MAP_VERSION;
     }
 
     function focusPrinter(printer) {
@@ -297,7 +298,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btn-calibrate-panel').addEventListener('click', () => sendCommand(CALIBRAGEM, 'Calibrar', currentPrinterIp, API_BASE_URL));
     document.getElementById('btn-headtest-panel').addEventListener('click', () => sendCommand(TESTE_CABECA, 'Teste Cabeça', currentPrinterIp, API_BASE_URL));
     document.getElementById('btn-zt421-panel').addEventListener('click', () => {
-        if (confirm('Enviar ZT421?')) sendCommand(`\x10CT~~CD,~CC^~CT~^XA~TA000~JSN^LT0^MNW^MTT^PON^PMN^LH0,0^JMA^PR3,3~SD20^JUS^LRN^CI0^XZ`, 'ZT421', currentPrinterIp, API_BASE_URL);
+        if (confirm('Enviar configuração ZT421 (imprime etiqueta de teste)?')) sendCommand(ZT421_CONFIG, 'ZT421', currentPrinterIp, API_BASE_URL);
     });
     document.getElementById('btn-send-raw-panel').addEventListener('click', () => {
         sendCommand(document.getElementById('panel-rawcmd').value, 'Manual', currentPrinterIp, API_BASE_URL);
@@ -353,7 +354,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('search-container').classList.remove('expanded');
                 searchInput.value = '';
                 if (r.floor !== currentFloor) { currentFloor = r.floor; floorSelect.value = r.floor; updateMapImage(); renderAllPrinters(); }
-                focusPrinter(r); selectPrinter(r);
+                // apenas destaca no mapa; NÃO abre o painel virtual automaticamente
+                focusPrinter(r);
             };
             searchResults.appendChild(d);
         });

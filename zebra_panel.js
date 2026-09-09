@@ -1,7 +1,7 @@
 import { sendCommand, fetchPrinterStatus, sendCommandWithReply, fetchCounter, STATE_LABELS } from './printer_logic.js';
 import { showToast, logPanel } from './helpers.js';
 import { openBrowserWindow } from './browser_window.js';
-import { TESTE_CABECA, CALIBRAGEM } from './data.js';
+import { TESTE_CABECA, CALIBRAGEM, ZT421_CONFIG } from './data.js';
 
 const POLL_MS = 8000;      // intervalo de telemetria com o painel aberto
 const COUNTER_MS = 5000;   // intervalo do contador de impressão
@@ -543,8 +543,8 @@ function init() {
     // ações avançadas
     $('adv-toggle').addEventListener('click', () => $('adv-toggle').parentElement.classList.toggle('open'));
     $('adv-zt421').addEventListener('click', () => {
-        if (confirm('Enviar configuração ZT421 para a impressora?'))
-            keyAction(`\x10CT~~CD,~CC^~CT~^XA~TA000~JSN^LT0^MNW^MTT^PON^PMN^LH0,0^JMA^PR3,3~SD20^JUS^LRN^CI0^XZ`, 'Config ZT421');
+        if (confirm('Enviar configuração ZT421 para a impressora? (imprime uma etiqueta de teste)'))
+            keyAction(ZT421_CONFIG, 'Config ZT421', 4000);
     });
     $('adv-factory').addEventListener('click', () => {
         if (confirm('Restaurar padrões de fábrica?\n\nATENÇÃO: pode apagar a configuração de rede e desconectar a impressora do túnel, exigindo intervenção física no local.'))
