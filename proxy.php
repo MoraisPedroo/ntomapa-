@@ -722,57 +722,77 @@ function ping_printer($ip) {
     return $out;
 }
 
-/* Broadcast/descoberta: varre base.1..254 na porta 9100 (conexões assíncronas
-   em lotes, dentro do limite de sockets do Windows) e devolve as vivas com
-   serial/modelo (SGD). */
+/* Broadcast/descoberta: varre base.1..254 na porta 9100.
+   Conecta em lote (async), envia um getvar e só considera "impressora" quem
+   RESPONDE — sem falsos positivos. Tem limite de tempo rígido (nunca estoura
+   o max_execution_time e vira 500). Devolve IP + serial + modelo. */
 function scan_network($baseIp, $port = 9100) {
     if (!preg_match('~^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}~', trim($baseIp), $mm)) {
         return ['ok' => false, 'message' => 'IP da faixa inválido.', 'data' => []];
     }
     $prefix = $mm[1];
-    $alive = [];
-    $batch = 50;                 // stream_select no Windows limita ~64 fds
-    $connectWindow = 0.9;        // tempo p/ cada lote confirmar conexão
+    $hardDeadline = microtime(true) + 25;   // nunca passa disso (limite PHP = 60s)
+    $probe = "! U1 getvar \"device.unique_id\"\r\n! U1 getvar \"device.product_name\"\r\n";
+    $batch = 40;                             // dentro do limite de fds do Windows
+    $found = [];
 
-    for ($start = 1; $start <= 254; $start += $batch) {
+    for ($start = 1; $start <= 254 && microtime(true) < $hardDeadline; $start += $batch) {
         $end = min($start + $batch - 1, 254);
-        $socks = [];
+
+        // fase 1: conecta (async) e, ao ficar gravável, dispara o probe
+        $connecting = [];
         for ($i = $start; $i <= $end; $i++) {
-            $ip = "$prefix.$i";
-            $errno = 0; $errstr = '';
-            $fp = @stream_socket_client("tcp://$ip:$port", $errno, $errstr, 1,
+            $en = 0; $es = '';
+            $fp = @stream_socket_client("tcp://$prefix.$i:$port", $en, $es, 1,
                 STREAM_CLIENT_ASYNC_CONNECT | STREAM_CLIENT_CONNECT);
-            if ($fp) $socks[$ip] = $fp;
+            if ($fp) { @stream_set_blocking($fp, false); $connecting["$prefix.$i"] = $fp; }
         }
-        $deadline = microtime(true) + $connectWindow;
-        while (!empty($socks) && microtime(true) < $deadline) {
-            $r = null; $e = null; $w = array_values($socks);
-            $n = @stream_select($r, $w, $e, 0, 150000);
-            if ($n === false) break;
-            if ($n > 0) {
+        $reading = [];
+        $cDeadline = microtime(true) + 1.0;
+        while (!empty($connecting) && microtime(true) < $cDeadline && microtime(true) < $hardDeadline) {
+            $r = null; $e = null; $w = array_values($connecting);
+            if (@stream_select($r, $w, $e, 0, 120000) > 0) {
                 foreach ($w as $fp) {
-                    $ip = array_search($fp, $socks, true);
+                    $ip = array_search($fp, $connecting, true);
                     if ($ip === false) continue;
-                    $peer = @stream_socket_get_name($fp, true);
-                    if ($peer !== false && $peer !== '' && $peer !== '0.0.0.0:0') $alive[] = $ip;
-                    @fclose($fp);
-                    unset($socks[$ip]);
+                    unset($connecting[$ip]);
+                    if (@stream_socket_get_name($fp, true) === false) { @fclose($fp); continue; } // recusado
+                    $wrote = @fwrite($fp, $probe);
+                    if ($wrote) $reading[$ip] = $fp; else @fclose($fp);
                 }
             }
         }
-        foreach ($socks as $fp) @fclose($fp); // restantes = não conectaram a tempo
+        foreach ($connecting as $fp) @fclose($fp);
+
+        // fase 2: lê as respostas — só impressoras respondem ao getvar
+        $buffers = [];
+        $rDeadline = microtime(true) + 1.3;
+        while (!empty($reading) && microtime(true) < $rDeadline && microtime(true) < $hardDeadline) {
+            $r = array_values($reading); $w = null; $e = null;
+            if (@stream_select($r, $w, $e, 0, 200000) > 0) {
+                foreach ($r as $fp) {
+                    $ip = array_search($fp, $reading, true);
+                    if ($ip === false) continue;
+                    $chunk = @fread($fp, 2048);
+                    if ($chunk === false || $chunk === '') { @fclose($fp); unset($reading[$ip]); continue; }
+                    $buffers[$ip] = ($buffers[$ip] ?? '') . $chunk;
+                }
+            }
+        }
+        foreach ($reading as $fp) @fclose($fp);
+
+        foreach ($buffers as $ip => $buf) {
+            $vals = [];
+            if (preg_match_all('~"([^"]*)"~', $buf, $vm)) $vals = $vm[1];
+            $found[$ip] = [
+                'serial' => (isset($vals[0]) && $vals[0] !== '') ? $vals[0] : 'N/I',
+                'model'  => (isset($vals[1]) && $vals[1] !== '') ? $vals[1] : 'Zebra',
+            ];
+        }
     }
 
-    // coleta serial/modelo das vivas (poucas) via SGD
     $printers = [];
-    foreach ($alive as $ip) {
-        $serial = ''; $model = '';
-        $r1 = send_raw_tcp($ip, '! U1 getvar "device.unique_id"' . "\r\n", 2, true, 0.8);
-        if ($r1['ok'] ?? false) $serial = trim($r1['reply'], "\"\r\n ");
-        $r2 = send_raw_tcp($ip, '! U1 getvar "device.product_name"' . "\r\n", 2, true, 0.8);
-        if ($r2['ok'] ?? false) $model = trim($r2['reply'], "\"\r\n ");
-        $printers[] = ['ip' => $ip, 'serial' => $serial !== '' ? $serial : 'N/I', 'model' => $model !== '' ? $model : 'Zebra'];
-    }
+    foreach ($found as $ip => $info) $printers[] = ['ip' => $ip, 'serial' => $info['serial'], 'model' => $info['model']];
     sort_ips($printers);
     return ['ok' => true, 'data' => $printers, 'message' => count($printers) . ' impressora(s) na faixa ' . $prefix . '.x'];
 }
