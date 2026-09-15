@@ -4,6 +4,7 @@ import { showToast, logPanel, debounce } from './helpers.js';
 import { fetchPrinterStatus, sendCommand, STATE_LABELS } from './printer_logic.js';
 import { openBrowserWindow, closeBrowserWindow, reloadBrowser, browserBack, navigateFromBar, setupDragLogic } from './browser_window.js';
 import { openZebraPanel, closeZebraPanel } from './zebra_panel.js';
+import { initIpTools, openIpToolsModal } from './iptools.js';
 import { initPrinters, getPrinters, addPrinter, updatePrinter, deletePrinter, isCloudSynced } from './printers_store.js';
 
 let API_BASE_URL = "https://replacement-way-milk-auction.trycloudflare.com/proxy.php";
@@ -161,6 +162,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         logPanel(`Selecionado: ${printer.name} (${printer.ip})`);
     }
 
+    // Abre o painel virtual para um IP avulso (usa a impressora cadastrada se existir)
+    function openPanelForIp(ip) {
+        if (!ip) return;
+        const known = printerData.find(p => p.ip === ip);
+        selectPrinter(known || { id: 'adhoc-' + ip, name: ip, ip, selb: '', department: 'Equipamento avulso', observations: '' });
+    }
+
+    // DP IP-Tools (config, etiqueta, broadcast) — usa a impressora escolhida no scan p/ abrir o painel
+    initIpTools({ apiGetter, onUsePrinter: (ip) => { document.getElementById('ip-input-panel').value = ip; openPanelForIp(ip); } });
+
     /* -------------------- Posicionamento no mapa -------------------- */
     function enterPlacingMode(cb) {
         placing = true;
@@ -305,8 +316,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('set-ip-panel').addEventListener('click', () => {
         const val = document.getElementById('ip-input-panel').value.trim();
-        if (val) { currentPrinterIp = val; document.getElementById('panel-current-ip').textContent = val; logPanel(`IP Manual: ${val}`); }
+        if (!val) return;
+        document.getElementById('panel-current-ip').textContent = val;
+        logPanel(`IP definido: ${val}`);
+        openPanelForIp(val); // abre também o PAINEL VIRTUAL · LINK-OS para esse IP
     });
+
+    // Config & Broadcast (DP IP-Tools)
+    document.getElementById('btn-iptools-panel').addEventListener('click', () => {
+        openIpToolsModal(currentPrinterIp || document.getElementById('ip-input-panel').value.trim());
+    });
+    document.getElementById('zp-iptools').addEventListener('click', () => openIpToolsModal(currentPrinterIp));
 
     document.getElementById('collapse-panel').addEventListener('click', () => {
         const side = document.getElementById('ip-tools-sidebar');

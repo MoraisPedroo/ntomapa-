@@ -722,6 +722,69 @@ function ping_printer($ip) {
     return $out;
 }
 
+/* Broadcast/descoberta: varre base.1..254 na porta 9100 (conexões assíncronas
+   em lotes, dentro do limite de sockets do Windows) e devolve as vivas com
+   serial/modelo (SGD). */
+function scan_network($baseIp, $port = 9100) {
+    if (!preg_match('~^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}~', trim($baseIp), $mm)) {
+        return ['ok' => false, 'message' => 'IP da faixa inválido.', 'data' => []];
+    }
+    $prefix = $mm[1];
+    $alive = [];
+    $batch = 50;                 // stream_select no Windows limita ~64 fds
+    $connectWindow = 0.9;        // tempo p/ cada lote confirmar conexão
+
+    for ($start = 1; $start <= 254; $start += $batch) {
+        $end = min($start + $batch - 1, 254);
+        $socks = [];
+        for ($i = $start; $i <= $end; $i++) {
+            $ip = "$prefix.$i";
+            $errno = 0; $errstr = '';
+            $fp = @stream_socket_client("tcp://$ip:$port", $errno, $errstr, 1,
+                STREAM_CLIENT_ASYNC_CONNECT | STREAM_CLIENT_CONNECT);
+            if ($fp) $socks[$ip] = $fp;
+        }
+        $deadline = microtime(true) + $connectWindow;
+        while (!empty($socks) && microtime(true) < $deadline) {
+            $r = null; $e = null; $w = array_values($socks);
+            $n = @stream_select($r, $w, $e, 0, 150000);
+            if ($n === false) break;
+            if ($n > 0) {
+                foreach ($w as $fp) {
+                    $ip = array_search($fp, $socks, true);
+                    if ($ip === false) continue;
+                    $peer = @stream_socket_get_name($fp, true);
+                    if ($peer !== false && $peer !== '' && $peer !== '0.0.0.0:0') $alive[] = $ip;
+                    @fclose($fp);
+                    unset($socks[$ip]);
+                }
+            }
+        }
+        foreach ($socks as $fp) @fclose($fp); // restantes = não conectaram a tempo
+    }
+
+    // coleta serial/modelo das vivas (poucas) via SGD
+    $printers = [];
+    foreach ($alive as $ip) {
+        $serial = ''; $model = '';
+        $r1 = send_raw_tcp($ip, '! U1 getvar "device.unique_id"' . "\r\n", 2, true, 0.8);
+        if ($r1['ok'] ?? false) $serial = trim($r1['reply'], "\"\r\n ");
+        $r2 = send_raw_tcp($ip, '! U1 getvar "device.product_name"' . "\r\n", 2, true, 0.8);
+        if ($r2['ok'] ?? false) $model = trim($r2['reply'], "\"\r\n ");
+        $printers[] = ['ip' => $ip, 'serial' => $serial !== '' ? $serial : 'N/I', 'model' => $model !== '' ? $model : 'Zebra'];
+    }
+    sort_ips($printers);
+    return ['ok' => true, 'data' => $printers, 'message' => count($printers) . ' impressora(s) na faixa ' . $prefix . '.x'];
+}
+
+function sort_ips(&$arr) {
+    usort($arr, function ($a, $b) {
+        $la = (int)substr(strrchr($a['ip'], '.'), 1);
+        $lb = (int)substr(strrchr($b['ip'], '.'), 1);
+        return $la - $lb;
+    });
+}
+
 /* =====================================================================
  *                              ROTEAMENTO
  * ===================================================================== */
@@ -796,6 +859,7 @@ if ($method === 'POST') {
     if ($action === 'status'  && !empty($data['ip'])) send_json(device_status(trim($data['ip'])), 200);
     if ($action === 'info'    && !empty($data['ip'])) send_json(zebra_info(trim($data['ip'])), 200);
     if ($action === 'counter' && !empty($data['ip'])) send_json(device_counter(trim($data['ip']), trim($data['path'] ?? '')), 200);
+    if (($action === 'scan_network' || $action === 'scan') && !empty($data['base_ip'] ?? $data['ip'] ?? '')) send_json(scan_network(trim($data['base_ip'] ?? $data['ip'])), 200);
 
     if (!empty($data['url'])) {
         $url = trim($data['url']); $m = strtoupper($data['method'] ?? 'POST');
@@ -830,6 +894,7 @@ if ($action === 'ping'    && !empty($_GET['ip'])) send_json(ping_printer(trim($_
 if ($action === 'status'  && !empty($_GET['ip'])) send_json(device_status(trim($_GET['ip'])), 200);
 if ($action === 'info'    && !empty($_GET['ip'])) send_json(zebra_info(trim($_GET['ip'])), 200);
 if ($action === 'counter' && !empty($_GET['ip'])) send_json(device_counter(trim($_GET['ip']), trim($_GET['path'] ?? '')), 200);
+if (($action === 'scan_network' || $action === 'scan') && !empty($_GET['ip'])) send_json(scan_network(trim($_GET['ip'])), 200);
 
 // GET de formulário do dispositivo (destino nos campos escondidos __mp_url)
 if (!empty($_GET['__mp_url'])) {
