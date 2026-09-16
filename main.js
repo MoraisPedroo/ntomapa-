@@ -4,7 +4,7 @@ import { showToast, logPanel, debounce } from './helpers.js';
 import { fetchPrinterStatus, sendCommand, STATE_LABELS } from './printer_logic.js';
 import { openBrowserWindow, closeBrowserWindow, reloadBrowser, browserBack, navigateFromBar, setupDragLogic } from './browser_window.js';
 import { openZebraPanel, closeZebraPanel } from './zebra_panel.js';
-import { initIpTools, openIpToolsModal } from './iptools.js?v=4';
+import { initIpTools, openIpToolsModal } from './iptools.js';
 import { initPrinters, getPrinters, addPrinter, updatePrinter, deletePrinter, isCloudSynced } from './printers_store.js';
 
 let API_BASE_URL = "https://replacement-way-milk-auction.trycloudflare.com/proxy.php";
