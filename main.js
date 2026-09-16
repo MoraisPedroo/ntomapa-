@@ -4,7 +4,7 @@ import { showToast, logPanel, debounce } from './helpers.js';
 import { fetchPrinterStatus, sendCommand, STATE_LABELS } from './printer_logic.js';
 import { openBrowserWindow, closeBrowserWindow, reloadBrowser, browserBack, navigateFromBar, setupDragLogic } from './browser_window.js';
 import { openZebraPanel, closeZebraPanel } from './zebra_panel.js';
-import { initIpTools, openIpToolsModal } from './iptools.js';
+import { initIpTools, openIpToolsModal } from './iptools.js?v=4';
 import { initPrinters, getPrinters, addPrinter, updatePrinter, deletePrinter, isCloudSynced } from './printers_store.js';
 
 let API_BASE_URL = "https://replacement-way-milk-auction.trycloudflare.com/proxy.php";
@@ -367,7 +367,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
                 <div class="result-sub">
                     <span class="result-ip mono">${r.ip}</span>
-                    <span class="result-dep">${r.department || r.selb || ''}</span>
+                    ${r.selb ? `<span class="result-selb">SELB ${r.selb}</span>` : ''}
+                    <span class="result-dep">${r.department || ''}</span>
                 </div>`;
             d.onclick = () => {
                 searchResults.style.display = 'none';
@@ -380,7 +381,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             searchResults.appendChild(d);
         });
         searchResults.style.display = 'block';
+        clampResultsToViewport();
     }, 250));
+
+    // Mantém o dropdown dentro da tela (em telas estreitas ele encostaria
+    // fora da borda esquerda por causa do alinhamento à direita da busca).
+    function clampResultsToViewport() {
+        searchResults.style.left = '';
+        searchResults.style.right = '0';
+        const parent = searchResults.offsetParent;
+        if (!parent) return;
+        const r = searchResults.getBoundingClientRect();
+        const gutter = 12;
+        if (r.left < gutter) {
+            const pr = parent.getBoundingClientRect();
+            searchResults.style.right = 'auto';
+            searchResults.style.left = (gutter - pr.left) + 'px';
+        }
+    }
+    window.addEventListener('resize', () => {
+        if (searchResults.style.display === 'block') clampResultsToViewport();
+    });
 
     /* -------------------- Carrega impressoras (store) -------------------- */
     updateMapImage();

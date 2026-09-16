@@ -11,6 +11,8 @@ import { showToast, logPanel } from './helpers.js';
 let getApi = () => '';
 let onUse = null;          // callback(ip) — abre o painel virtual
 let scanResults = [];
+let scanning = false;      // varredura em andamento
+let scanRange = '';        // faixa atual sendo varrida (para o progresso ao vivo)
 
 const $ = (id) => document.getElementById(id);
 
@@ -38,11 +40,14 @@ function isValidIp(v) {
 }
 
 /* ---------------- Broadcast (scan) ---------------- */
-export async function scanNetwork(baseIp) {
+export async function scanNetwork(baseIp, from, to) {
+    const body = { action: 'scan_network', base_ip: baseIp };
+    if (from != null) body.from = from;
+    if (to != null) body.to = to;
     const res = await fetch(getApi(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'scan_network', base_ip: baseIp })
+        body: JSON.stringify(body)
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || json.ok === false) throw new Error(json.message || json.error || `HTTP ${res.status}`);
@@ -69,14 +74,21 @@ function renderScanResults() {
     const box = $('ipt-scan-results');
     const filter = ($('ipt-scan-filter').value || '').toLowerCase().trim();
     const items = scanResults.filter(p => [p.ip, p.serial, p.model].some(v => v.toLowerCase().includes(filter)));
-    $('ipt-scan-summary').textContent = filter
-        ? `${items.length} de ${scanResults.length} resultado(s)`
-        : `${scanResults.length} impressora(s) encontrada(s)`;
+    const summary = $('ipt-scan-summary');
+    if (scanning) {
+        summary.innerHTML = `<span class="ipt-spin" aria-hidden="true"></span> Varrendo ${scanRange} · <b>${scanResults.length}</b> encontrada(s)…`;
+    } else {
+        summary.textContent = filter
+            ? `${items.length} de ${scanResults.length} resultado(s)`
+            : `${scanResults.length} impressora(s) encontrada(s)`;
+    }
     box.replaceChildren();
     if (!items.length) {
         const e = document.createElement('div');
         e.className = 'ipt-empty';
-        e.textContent = scanResults.length ? 'Nenhum resultado para o filtro.' : 'Nenhuma Zebra encontrada nessa faixa.';
+        e.textContent = scanning
+            ? 'Varrendo a rede…'
+            : (scanResults.length ? 'Nenhum resultado para o filtro.' : 'Nenhuma Zebra encontrada nessa faixa.');
         box.append(e);
         return;
     }
@@ -99,25 +111,62 @@ function usePrinter(p) {
     $('ipt-lbl-target').value = p.ip;
     $('ipt-lbl-ip').value = p.ip;
     setStatus(`Selecionada: ${p.ip} · S/N ${p.serial}`, 'ok');
-    if (onUse) onUse(p.ip);           // abre o painel virtual
+    closeIpToolsModal();              // fecha a caixinha…
+    if (onUse) onUse(p.ip);          // …e abre só o painel virtual
 }
 
 async function doScan() {
+    if (scanning) return;
     const base = $('ipt-scan-base').value.trim();
     if (!isValidIp(base)) { setStatus('IP da faixa inválido.', 'warn'); return; }
+    const prefix = base.split('.').slice(0, 3).join('.');
     const btn = $('ipt-scan-btn');
-    btn.disabled = true; btn.textContent = 'Buscando…';
-    setStatus(`Varredura em ${base.split('.').slice(0, 3).join('.')}.1–254 …`, 'warn');
+    const CHUNK = 51;              // varre em pedaços p/ mostrar progresso ao vivo
+
+    scanning = true;
+    scanResults = [];
+    scanRange = `${prefix}.1`;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="ipt-spin" aria-hidden="true"></span> Buscando…';
+    setStatus(`Varrendo ${prefix}.1–254 …`, 'warn');
+    renderScanResults();
+
+    const seen = new Set();
+    let hadError = false;
     try {
-        scanResults = await scanNetwork(base);
-        renderScanResults();
-        setStatus(`Busca concluída: ${scanResults.length} Zebra(s).`, scanResults.length ? 'ok' : 'warn');
+        for (let from = 1; from <= 254; from += CHUNK) {
+            const to = Math.min(from + CHUNK - 1, 254);
+            scanRange = `${prefix}.${from}–${to}`;
+            renderScanResults();                        // mostra a faixa atual + spinner
+            let part = [];
+            try {
+                part = await scanNetwork(base, from, to);
+            } catch (e) {
+                hadError = true;
+                setStatus(`Falha no trecho ${prefix}.${from}–${to}: ${e.message}`, 'err');
+                continue;                               // segue nos próximos trechos
+            }
+            let added = false;
+            for (const p of part) {
+                if (seen.has(p.ip)) continue;
+                seen.add(p.ip);
+                scanResults.push(p);
+                added = true;
+            }
+            if (added) scanResults.sort((a, b) =>
+                (+a.ip.split('.')[3] || 0) - (+b.ip.split('.')[3] || 0));
+            renderScanResults();                        // contador sobe a cada trecho
+        }
         logPanel(`Broadcast: ${scanResults.length} impressora(s) na faixa de ${base}`);
-    } catch (e) {
-        scanResults = []; renderScanResults();
-        setStatus('Falha na busca: ' + e.message, 'err');
     } finally {
-        btn.disabled = false; btn.textContent = 'Buscar';
+        scanning = false;
+        btn.disabled = false;
+        btn.textContent = 'Buscar';
+        renderScanResults();
+        setStatus(
+            `Busca concluída: ${scanResults.length} Zebra(s).`,
+            scanResults.length ? 'ok' : (hadError ? 'err' : 'warn')
+        );
     }
 }
 

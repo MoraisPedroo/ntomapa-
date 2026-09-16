@@ -726,18 +726,22 @@ function ping_printer($ip) {
    Conecta em lote (async), envia um getvar e só considera "impressora" quem
    RESPONDE — sem falsos positivos. Tem limite de tempo rígido (nunca estoura
    o max_execution_time e vira 500). Devolve IP + serial + modelo. */
-function scan_network($baseIp, $port = 9100) {
+function scan_network($baseIp, $port = 9100, $from = 1, $to = 254) {
     if (!preg_match('~^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}~', trim($baseIp), $mm)) {
         return ['ok' => false, 'message' => 'IP da faixa inválido.', 'data' => []];
     }
     $prefix = $mm[1];
+    // faixa (permite varredura em pedaços p/ progresso ao vivo no front)
+    $from = max(1, (int)$from);
+    $to   = min(254, (int)$to);
+    if ($to < $from) $to = $from;
     $hardDeadline = microtime(true) + 25;   // nunca passa disso (limite PHP = 60s)
     $probe = "! U1 getvar \"device.unique_id\"\r\n! U1 getvar \"device.product_name\"\r\n";
     $batch = 40;                             // dentro do limite de fds do Windows
     $found = [];
 
-    for ($start = 1; $start <= 254 && microtime(true) < $hardDeadline; $start += $batch) {
-        $end = min($start + $batch - 1, 254);
+    for ($start = $from; $start <= $to && microtime(true) < $hardDeadline; $start += $batch) {
+        $end = min($start + $batch - 1, $to);
 
         // fase 1: conecta (async) e, ao ficar gravável, dispara o probe
         $connecting = [];
@@ -794,7 +798,8 @@ function scan_network($baseIp, $port = 9100) {
     $printers = [];
     foreach ($found as $ip => $info) $printers[] = ['ip' => $ip, 'serial' => $info['serial'], 'model' => $info['model']];
     sort_ips($printers);
-    return ['ok' => true, 'data' => $printers, 'message' => count($printers) . ' impressora(s) na faixa ' . $prefix . '.x'];
+    return ['ok' => true, 'data' => $printers, 'from' => $from, 'to' => $to,
+            'message' => count($printers) . ' impressora(s) em ' . $prefix . '.' . $from . '–' . $to];
 }
 
 function sort_ips(&$arr) {
@@ -879,7 +884,12 @@ if ($method === 'POST') {
     if ($action === 'status'  && !empty($data['ip'])) send_json(device_status(trim($data['ip'])), 200);
     if ($action === 'info'    && !empty($data['ip'])) send_json(zebra_info(trim($data['ip'])), 200);
     if ($action === 'counter' && !empty($data['ip'])) send_json(device_counter(trim($data['ip']), trim($data['path'] ?? '')), 200);
-    if (($action === 'scan_network' || $action === 'scan') && !empty($data['base_ip'] ?? $data['ip'] ?? '')) send_json(scan_network(trim($data['base_ip'] ?? $data['ip'])), 200);
+    if (($action === 'scan_network' || $action === 'scan') && !empty($data['base_ip'] ?? $data['ip'] ?? '')) {
+        $bip = trim($data['base_ip'] ?? $data['ip']);
+        $ff  = isset($data['from']) ? (int)$data['from'] : 1;
+        $tt  = isset($data['to'])   ? (int)$data['to']   : 254;
+        send_json(scan_network($bip, 9100, $ff, $tt), 200);
+    }
 
     if (!empty($data['url'])) {
         $url = trim($data['url']); $m = strtoupper($data['method'] ?? 'POST');
@@ -914,7 +924,11 @@ if ($action === 'ping'    && !empty($_GET['ip'])) send_json(ping_printer(trim($_
 if ($action === 'status'  && !empty($_GET['ip'])) send_json(device_status(trim($_GET['ip'])), 200);
 if ($action === 'info'    && !empty($_GET['ip'])) send_json(zebra_info(trim($_GET['ip'])), 200);
 if ($action === 'counter' && !empty($_GET['ip'])) send_json(device_counter(trim($_GET['ip']), trim($_GET['path'] ?? '')), 200);
-if (($action === 'scan_network' || $action === 'scan') && !empty($_GET['ip'])) send_json(scan_network(trim($_GET['ip'])), 200);
+if (($action === 'scan_network' || $action === 'scan') && !empty($_GET['ip'])) {
+    $ff = isset($_GET['from']) ? (int)$_GET['from'] : 1;
+    $tt = isset($_GET['to'])   ? (int)$_GET['to']   : 254;
+    send_json(scan_network(trim($_GET['ip']), 9100, $ff, $tt), 200);
+}
 
 // GET de formulário do dispositivo (destino nos campos escondidos __mp_url)
 if (!empty($_GET['__mp_url'])) {
