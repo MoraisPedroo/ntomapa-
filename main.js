@@ -295,6 +295,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('zp-iptools').addEventListener('click', () => openIpToolsModal(currentPrinterIp));
     setupToolsMenu();
 
+    // "Deitar o mapa": tela cheia girada 90° p/ ver melhor com o celular deitado
+    const rotateBtn = document.getElementById('rotate-btn');
+    if (rotateBtn) {
+        const toggleLandscape = () => {
+            const on = document.body.classList.toggle('map-landscape');
+            rotateBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        };
+        rotateBtn.addEventListener('click', toggleLandscape);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.body.classList.contains('map-landscape')) toggleLandscape();
+        });
+    }
+
     function setupToolsMenu() {
         const menu = document.getElementById('tools-menu');   // .tools-fab
         const btn = document.getElementById('tools-btn');     // botão-maleta
