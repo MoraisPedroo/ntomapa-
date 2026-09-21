@@ -74,12 +74,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('btn-save-api-url').addEventListener('click', async () => {
         const newUrl = document.getElementById('new-api-url').value.trim();
-        if (!newUrl) return alert("Link inválido");
+        if (!newUrl) { showToast('Informe um link válido.'); return; }
         try {
             await setDoc(configDocRef, { url: newUrl, updatedAt: new Date() });
-            alert("Link atualizado!");
             document.getElementById('new-api-url').value = "";
-        } catch (e) { alert("Erro: " + e.message); }
+            document.getElementById('tool-modal').classList.add('hidden');
+            showToast('Link do túnel atualizado!');
+        } catch (e) { showToast('Erro ao salvar: ' + e.message); }
     });
 
     /* -------------------- Mapa -------------------- */
@@ -295,50 +296,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupToolsMenu();
 
     function setupToolsMenu() {
-        const menu = document.getElementById('tools-menu');
-        const btn = document.getElementById('tools-btn');
-        const pop = document.getElementById('tools-pop');
+        const menu = document.getElementById('tools-menu');   // .tools-fab
+        const btn = document.getElementById('tools-btn');     // botão-maleta
+        const pop = document.getElementById('tools-pop');     // .fab-items
         if (!menu || !btn || !pop) return;
 
-        const showView = (v) => { pop.dataset.view = v; };
-        // mantém o popover dentro da tela (offsetLeft ignora o transform da animação)
-        const clampPop = () => {
-            pop.style.left = ''; pop.style.right = '0';
-            const host = pop.offsetParent || menu;
-            const hostLeft = host.getBoundingClientRect().left;
-            if (hostLeft + pop.offsetLeft < 12) { pop.style.right = 'auto'; pop.style.left = (12 - hostLeft) + 'px'; }
+        // --- speed dial (abre/retrai as opções para baixo) ---
+        // joga a dica (tooltip) para o lado que tiver espaço na tela
+        const positionTips = () => {
+            const r = pop.getBoundingClientRect();
+            menu.classList.toggle('tips-right', r.left < window.innerWidth * 0.42);
         };
-        const openPop = () => {
-            showView('menu');
+        const openFab = () => {
             pop.hidden = false;
-            clampPop();
+            positionTips();
             requestAnimationFrame(() => menu.classList.add('open'));
             btn.setAttribute('aria-expanded', 'true');
         };
-        const closePop = () => {
+        const closeFab = () => {
             menu.classList.remove('open');
             btn.setAttribute('aria-expanded', 'false');
-            setTimeout(() => { if (!menu.classList.contains('open')) pop.hidden = true; }, 220);
+            setTimeout(() => { if (!menu.classList.contains('open')) pop.hidden = true; }, 260);
         };
-
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            menu.classList.contains('open') ? closePop() : openPop();
+            menu.classList.contains('open') ? closeFab() : openFab();
         });
         pop.addEventListener('click', (e) => e.stopPropagation());
-        document.addEventListener('click', () => { if (menu.classList.contains('open')) closePop(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu.classList.contains('open')) closePop(); });
-        window.addEventListener('resize', () => { if (menu.classList.contains('open')) clampPop(); });
-        pop.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => showView('menu')));
+        document.addEventListener('click', () => { if (menu.classList.contains('open')) closeFab(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu.classList.contains('open')) closeFab(); });
+        window.addEventListener('resize', () => { if (menu.classList.contains('open')) positionTips(); });
 
-        pop.querySelectorAll('.tool-card').forEach(card => {
-            card.addEventListener('click', () => {
-                switch (card.dataset.tool) {
-                    case 'broadcast': closePop(); openIpToolsModal('', 'scan'); break;
-                    case 'labels':    closePop(); openIpToolsModal('', 'label'); break;
-                    case 'fixip':     closePop(); openIpToolsModal('', 'config'); break;
-                    case 'extip':     showView('extip'); setTimeout(() => document.getElementById('tool-extip-input').focus(), 60); break;
-                    case 'apilink':   showView('apilink'); setTimeout(() => document.getElementById('new-api-url').focus(), 60); break;
+        // --- mini-modal com formulário (IP externo / Link do túnel) ---
+        const toolModal = document.getElementById('tool-modal');
+        const openToolModal = (which) => {
+            toolModal.dataset.open = which;
+            toolModal.classList.remove('hidden');
+            setTimeout(() => {
+                const f = which === 'extip' ? document.getElementById('tool-extip-input') : document.getElementById('new-api-url');
+                if (f) f.focus();
+            }, 80);
+        };
+        const closeToolModal = () => toolModal.classList.add('hidden');
+        document.getElementById('tool-modal-close').addEventListener('click', closeToolModal);
+        toolModal.addEventListener('click', (e) => { if (e.target === toolModal) closeToolModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !toolModal.classList.contains('hidden')) closeToolModal(); });
+
+        pop.querySelectorAll('.fab-item').forEach(item => {
+            item.addEventListener('click', () => {
+                closeFab();
+                switch (item.dataset.tool) {
+                    case 'broadcast': openIpToolsModal('', 'scan'); break;
+                    case 'labels':    openIpToolsModal('', 'label'); break;
+                    case 'fixip':     openIpToolsModal('', 'config'); break;
+                    case 'extip':     openToolModal('extip'); break;
+                    case 'apilink':   openToolModal('apilink'); break;
                 }
             });
         });
@@ -346,7 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const goExtIp = () => {
             const ip = document.getElementById('tool-extip-input').value.trim();
             if (!ip) return;
-            closePop();
+            closeToolModal();
             logPanel(`IP externo: ${ip}`);
             openPanelForIp(ip);
         };
