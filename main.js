@@ -295,16 +295,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('zp-iptools').addEventListener('click', () => openIpToolsModal(currentPrinterIp));
     setupToolsMenu();
 
-    // "Deitar o mapa": tela cheia girada 90° p/ ver melhor com o celular deitado
-    const rotateBtn = document.getElementById('rotate-btn');
-    if (rotateBtn) {
-        const toggleLandscape = () => {
-            const on = document.body.classList.toggle('map-landscape');
-            rotateBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    // Tela cheia: o mapa ocupa toda a tela (mantém as impressoras no lugar).
+    const fsBtn = document.getElementById('fullscreen-btn');
+    if (fsBtn) {
+        const setFull = (on) => {
+            document.body.classList.toggle('map-full', on);
+            fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
         };
-        rotateBtn.addEventListener('click', toggleLandscape);
+        fsBtn.addEventListener('click', () => {
+            const on = !document.body.classList.contains('map-full');
+            setFull(on);
+            // tenta a tela cheia real do navegador (esconde a barra do navegador no celular)
+            try {
+                if (on && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+                else if (!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+            } catch (_) {}
+        });
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && document.body.classList.contains('map-landscape')) toggleLandscape();
+            if (e.key === 'Escape' && document.body.classList.contains('map-full')) setFull(false);
+        });
+        // se sair da tela cheia do navegador (ESC/gesto), tira o modo também
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) setFull(false);
         });
     }
 

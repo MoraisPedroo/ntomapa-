@@ -215,7 +215,27 @@ body{
 .mtb-btn:hover{ border-color:var(--accent-border); color:var(--accent); transform:translateY(-1px); }
 .mtb-btn:active{ transform:scale(.94); }
 .mtb-btn .ico-moon{ display:none; }
-.rotate-btn{ display:none; }  /* só aparece no mobile */
+.fullscreen-btn .ico-collapse{ display:none; }
+body.map-full .fullscreen-btn .ico-expand{ display:none; }
+body.map-full .fullscreen-btn .ico-collapse{ display:inline; }
+
+/* ---- TELA CHEIA: mapa ocupa a tela toda (sem girar, impressoras no lugar) ---- */
+body.map-full{ overflow:hidden; }
+body.map-full #map-and-content{
+  position:fixed; inset:0; z-index:150; margin:0; padding:0; gap:0;
+  display:flex; align-items:center; justify-content:center; background:var(--map-bg);
+}
+body.map-full #map-container{
+  width:min(100vw, calc(100dvh * 1920 / 1358)) !important;
+  height:auto !important; max-width:none; margin:0; border-radius:0;
+}
+body.map-full #map-toolbar{
+  position:fixed; top:calc(12px + env(safe-area-inset-top)); right:12px;
+  left:auto; bottom:auto; width:auto; flex-direction:row; gap:0;
+  background:transparent; border:none; box-shadow:none; padding:0; z-index:160;
+}
+body.map-full #map-toolbar > *:not(#fullscreen-btn){ display:none; }
+body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid var(--card-border); box-shadow:var(--shadow-lg); color:var(--accent); }
 /* descrição no hover (à direita, sobre o mapa) */
 .mtb-btn::after{
   content:attr(data-tip); position:absolute; left:calc(100% + 10px); top:50%;
@@ -266,26 +286,22 @@ body{
     width:auto !important; max-height:54vh;
   }
 
-  /* botão "deitar o mapa" aparece na barra */
-  .rotate-btn{ display:inline-flex; }
-
-  /* MODO PAISAGEM: mapa em tela cheia, girado 90° (vire o celular) */
-  body.map-landscape{ overflow:hidden; }
-  body.map-landscape #map-container{
-    position:fixed !important; top:0; left:0; margin:0 !important;
-    width:100vh !important; height:100vw !important; max-width:none; border-radius:0;
-    z-index:200; background:var(--map-bg);
-    transform-origin:top left; transform:translateX(100vw) rotate(90deg);
+  /* tudo numa tela só: nada de rolagem; o mapa cabe centralizado entre o
+     cabeçalho e a barra do rodapé */
+  html, body{ height:100%; overflow:hidden; }
+  #main-wrapper{ min-height:100dvh; display:flex; flex-direction:column; }
+  .app-header{ flex:0 0 auto; }
+  .app-title p{ display:none; }
+  #map-and-content{
+    flex:1 1 auto; min-height:0;
+    display:flex; align-items:center; justify-content:center;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
   }
-  /* a barra sobe pro topo, transparente, mostrando só o botão de voltar */
-  body.map-landscape #map-toolbar{
-    top:0; bottom:auto; z-index:210; background:transparent; border:none; box-shadow:none;
-    justify-content:flex-end; padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+  #map-container{
+    width:min(96vw, calc((100dvh - 210px) * 1920 / 1358)) !important;
+    height:auto !important; margin:0;
   }
-  body.map-landscape #map-toolbar > *:not(#rotate-btn){ display:none; }
-  body.map-landscape #rotate-btn{
-    background:var(--panel-solid); border:1px solid var(--card-border); box-shadow:var(--shadow-lg); color:var(--accent);
-  }
+  .app-footer{ display:none; }
 }
 .ghost-btn{
   display:inline-flex; align-items:center; gap:8px; font-size:.82rem; font-weight:600; color:var(--txt);
