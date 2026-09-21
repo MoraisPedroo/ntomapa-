@@ -666,10 +666,12 @@ function zebra_info($ip) {
 /* Contador FIXO (vitalício) de etiquetas — o "NONRESET CNTR ... LABELS" da
    página config.html da Zebra; fallback pelo odômetro SGD na porta 9100.
    Também tenta o uptime por SGD (device.uptime). */
-function device_counter($ip, $customPath = '') {
-    $out = ['ip' => $ip, 'jobs' => null, 'uptime' => null, 'source' => null, 'found_path' => null, 'v' => 5, 'tried' => []];
+function device_counter($ip, $customPath = '', $jobPath = '') {
+    $out = ['ip' => $ip, 'jobs' => null, 'since_reboot' => null, 'uptime' => null,
+            'source' => null, 'source_reboot' => null, 'found_path' => null, 'found_job_path' => null,
+            'v' => 6, 'tried' => []];
 
-    // 1) config.html — contador fixo NONRESET CNTR (LABELS)
+    // 1) config.html — contador FIXO NONRESET CNTR (total vitalício de etiquetas)
     $paths = [];
     if ($customPath !== '') $paths[] = $customPath;
     foreach (['/config.html', '/CONFIG.HTM', '/printer/config.html'] as $pp) {
@@ -685,20 +687,47 @@ function device_counter($ip, $customPath = '') {
                 $out['jobs'] = (int)preg_replace('/\D/', '', $m[1]);
                 $out['source'] = 'config'; $out['found_path'] = $path; $rec['matched'] = true;
                 $out['tried'][] = $rec;
-                $out['uptime'] = sgd_uptime($ip);
-                return $out;
+                break;
             }
         }
         $out['tried'][] = $rec;
     }
 
-    // 2) SGD: odômetro de etiquetas vitalício (= NONRESET CNTR)
-    $r = send_raw_tcp($ip, '! U1 getvar "odometer.total_label_count"' . "\r\n", 3, true, 1.2);
-    $out['tried'][] = ['path' => 'sgd:odometer.total_label_count', 'reply' => isset($r['reply']) ? trim($r['reply']) : null, 'err' => $r['error'] ?? null];
-    if (($r['ok'] ?? false) && trim($r['reply']) !== '') {
-        $val = preg_replace('/\D/', '', $r['reply']);
-        if ($val !== '') { $out['jobs'] = (int)$val; $out['source'] = 'sgd'; $out['uptime'] = sgd_uptime($ip); }
+    // 1b) fallback SGD p/ o TOTAL, caso a config.html não tenha o NONRESET CNTR
+    if ($out['jobs'] === null) {
+        $r = send_raw_tcp($ip, '! U1 getvar "odometer.total_label_count"' . "\r\n", 3, true, 1.2);
+        $out['tried'][] = ['path' => 'sgd:odometer.total_label_count', 'reply' => isset($r['reply']) ? trim($r['reply']) : null, 'err' => $r['error'] ?? null];
+        if (($r['ok'] ?? false) && trim($r['reply']) !== '') {
+            $val = preg_replace('/\D/', '', $r['reply']);
+            if ($val !== '') { $out['jobs'] = (int)$val; $out['source'] = 'sgd'; }
+        }
     }
+
+    // 2) job log — "Total Jobs Printed" (zera ao reiniciar) + uptime da mesma página
+    $jpaths = [];
+    if ($jobPath !== '') $jpaths[] = $jobPath;
+    foreach (['/server/JOBLOG.htm', '/JobLog.HTM', '/joblog.htm', '/JOBLOG.HTM', '/server/joblog.htm'] as $pp) {
+        if (!in_array($pp, $jpaths, true)) $jpaths[] = $pp;
+    }
+    foreach ($jpaths as $path) {
+        $web = http_request('http://' . $ip . $path);
+        $rec = ['path' => $path, 'status' => $web['status'], 'err' => $web['error'], 'matched' => false, 'kind' => 'joblog'];
+        if ($web['error'] === null && $web['status'] >= 200 && $web['status'] < 400) {
+            $body = $web['body'];
+            if (preg_match('~Total\s+Jobs\s+Printed:.*?(\d[\d.,]*)~is', $body, $m)) {
+                $out['since_reboot'] = (int)preg_replace('/\D/', '', $m[1]);
+                $out['source_reboot'] = 'joblog'; $out['found_job_path'] = $path; $rec['matched'] = true;
+                if (preg_match('~System\s+Up\s+Time:\s*(?:<[^>]*>\s*)*([0-9][^<]*)~i', $body, $u)) $out['uptime'] = trim($u[1]);
+                $out['tried'][] = $rec;
+                break;
+            }
+        }
+        $out['tried'][] = $rec;
+    }
+
+    // 3) uptime por SGD, caso o job log não tenha entregado
+    if ($out['uptime'] === null) $out['uptime'] = sgd_uptime($ip);
+
     return $out;
 }
 
@@ -883,7 +912,7 @@ if ($method === 'POST') {
     $action = $data['action'] ?? null;
     if ($action === 'status'  && !empty($data['ip'])) send_json(device_status(trim($data['ip'])), 200);
     if ($action === 'info'    && !empty($data['ip'])) send_json(zebra_info(trim($data['ip'])), 200);
-    if ($action === 'counter' && !empty($data['ip'])) send_json(device_counter(trim($data['ip']), trim($data['path'] ?? '')), 200);
+    if ($action === 'counter' && !empty($data['ip'])) send_json(device_counter(trim($data['ip']), trim($data['path'] ?? ''), trim($data['job_path'] ?? '')), 200);
     if (($action === 'scan_network' || $action === 'scan') && !empty($data['base_ip'] ?? $data['ip'] ?? '')) {
         $bip = trim($data['base_ip'] ?? $data['ip']);
         $ff  = isset($data['from']) ? (int)$data['from'] : 1;
@@ -923,7 +952,7 @@ $action = $_GET['action'] ?? null;
 if ($action === 'ping'    && !empty($_GET['ip'])) send_json(ping_printer(trim($_GET['ip'])), 200);
 if ($action === 'status'  && !empty($_GET['ip'])) send_json(device_status(trim($_GET['ip'])), 200);
 if ($action === 'info'    && !empty($_GET['ip'])) send_json(zebra_info(trim($_GET['ip'])), 200);
-if ($action === 'counter' && !empty($_GET['ip'])) send_json(device_counter(trim($_GET['ip']), trim($_GET['path'] ?? '')), 200);
+if ($action === 'counter' && !empty($_GET['ip'])) send_json(device_counter(trim($_GET['ip']), trim($_GET['path'] ?? ''), trim($_GET['job_path'] ?? '')), 200);
 if (($action === 'scan_network' || $action === 'scan') && !empty($_GET['ip'])) {
     $ff = isset($_GET['from']) ? (int)$_GET['from'] : 1;
     $tt = isset($_GET['to'])   ? (int)$_GET['to']   : 254;

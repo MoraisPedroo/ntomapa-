@@ -13,7 +13,8 @@ let getApi = () => '';     // getter do link da API
 let handlers = {};         // { onEdit, onDelete }
 let pollTimer = null;
 let counterTimer = null;
-let counterPath = '';      // caminho da página de contador que funcionou
+let counterPath = '';      // caminho da config.html (total vitalício) que funcionou
+let counterJobPath = '';   // caminho do job log (Total Jobs Printed) que funcionou
 let counterFetching = false;
 let counterValue = null;   // contador fixo (etiquetas vitalícias) mostrado no LCD
 let lastJobs = null;
@@ -307,11 +308,40 @@ function renderCounter(res) {
     // guarda o diagnóstico para o botão "copiar"
     if (res && res.debug) $('counter-diag-text').value = res.debug;
 
-    if (res && res.jobs !== null && res.jobs !== undefined) {
-        const num = Number(res.jobs).toLocaleString('pt-BR');
-        if (valEl.textContent !== num) {
-            valEl.textContent = num;
-            card.classList.remove('bump'); void card.offsetWidth; card.classList.add('bump'); // anima a troca
+    const rebootEl = $('counter-reboot');
+    const total = res ? res.jobs : null;
+    const reboot = res ? res.sinceReboot : null;
+    const hasTotal = total !== null && total !== undefined;
+    const hasReboot = reboot !== null && reboot !== undefined;
+
+    if (hasTotal || hasReboot) {
+        // total vitalício (NONRESET CNTR)
+        if (hasTotal) {
+            const num = Number(total).toLocaleString('pt-BR');
+            if (valEl.textContent !== num) {
+                valEl.textContent = num;
+                card.classList.remove('bump'); void card.offsetWidth; card.classList.add('bump'); // anima a troca
+            }
+            // reflete o total dentro do LCD verde
+            counterValue = total;
+            const lcdCtr = $('lcd-ctr-val');
+            if (lcdCtr && lcdCtr.textContent !== num) {
+                lcdCtr.textContent = num;
+                const strip = lcdCtr.closest('.lcd-ctr');
+                if (strip) { strip.classList.remove('pulse'); void strip.offsetWidth; strip.classList.add('pulse'); }
+            }
+            lastJobs = total;
+        } else {
+            valEl.textContent = '----';
+        }
+        // etiquetas desde a última reinicialização (Total Jobs Printed do job log)
+        if (rebootEl) {
+            const rnum = hasReboot ? Number(reboot).toLocaleString('pt-BR') : '—';
+            if (rebootEl.textContent !== rnum) {
+                rebootEl.textContent = rnum;
+                const wrap = rebootEl.closest('.cd-since');
+                if (wrap) { wrap.classList.remove('bump'); void wrap.offsetWidth; wrap.classList.add('bump'); }
+            }
         }
         upEl.textContent = formatUptime(res.uptime) || '—';
         updEl.textContent = new Date().toLocaleTimeString('pt-BR');
@@ -319,17 +349,9 @@ function renderCounter(res) {
         if (liveEl) liveEl.textContent = '● LIVE';
         if (diagBtn) diagBtn.classList.add('hidden');
         $('counter-diag').classList.add('hidden');
-        // reflete o valor dentro do LCD verde
-        counterValue = res.jobs;
-        const lcdCtr = $('lcd-ctr-val');
-        if (lcdCtr && lcdCtr.textContent !== num) {
-            lcdCtr.textContent = num;
-            const strip = lcdCtr.closest('.lcd-ctr');
-            if (strip) { strip.classList.remove('pulse'); void strip.offsetWidth; strip.classList.add('pulse'); }
-        }
-        lastJobs = res.jobs;
     } else {
         valEl.textContent = '----';
+        if (rebootEl) rebootEl.textContent = '—';
         upEl.textContent = '—';
         updEl.textContent = res && res.error ? 'sem conexão' : 'indisponível';
         card.classList.add('counter-off');
@@ -342,14 +364,17 @@ async function refreshCounter() {
     if (!current || counterFetching) return;
     counterFetching = true;
     const mySession = session;
-    const res = await fetchCounter(current.ip, getApi(), counterPath);
+    const res = await fetchCounter(current.ip, getApi(), counterPath, counterJobPath);
     counterFetching = false;
     if (mySession !== session || !current) return;
-    if (res.foundPath) counterPath = res.foundPath; // memoriza o caminho certo p/ os próximos
+    if (res.foundPath) counterPath = res.foundPath;         // memoriza a config.html
+    if (res.foundJobPath) counterJobPath = res.foundJobPath; // memoriza o job log
     renderCounter(res);
-    // dispositivo sem contador (não é erro de rede): para de sondar para não pesar
+    // dispositivo sem nenhum contador (não é erro de rede): para de sondar para não pesar
     // (ainda atualiza ao enviar um comando, que chama refreshCounter direto)
-    if ((res.jobs === null || res.jobs === undefined) && !res.error) stopCounterPoll();
+    const noData = (res.jobs === null || res.jobs === undefined) &&
+                   (res.sinceReboot === null || res.sinceReboot === undefined);
+    if (noData && !res.error) stopCounterPoll();
 }
 function startCounterPoll() { stopCounterPoll(); counterTimer = setInterval(refreshCounter, COUNTER_MS); }
 function stopCounterPoll() { if (counterTimer) { clearInterval(counterTimer); counterTimer = null; } }
@@ -470,6 +495,7 @@ export function openZebraPanel(printer, apiGetter, opts = {}) {
 
     // reseta o contador
     counterPath = '';
+    counterJobPath = '';
     lastJobs = null;
     counterValue = null;
     renderCounter(null);

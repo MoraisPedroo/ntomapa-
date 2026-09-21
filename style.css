@@ -254,6 +254,27 @@ body{
 :root[data-theme="dark"] .zebra-shell{ background:linear-gradient(180deg, rgba(17,26,40,.97), rgba(9,14,23,.98)); }
 @keyframes shellIn{ from{ opacity:0; transform:translateY(18px) scale(.97);} to{ opacity:1; transform:none;} }
 @media (max-width:920px){ .zebra-shell{ grid-template-columns:1fr; } }
+
+/* ------------------------------------------------------------------
+   Visor encostado à direita, flutuando SOBRE o mapa (não escurece) —
+   simula o visor da impressora ao lado do mapa.
+------------------------------------------------------------------ */
+#zebra-modal{
+  background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none;
+  justify-content:flex-end; align-items:stretch; padding:0;
+  pointer-events:none;                 /* deixa o mapa visível e clicável ao lado */
+}
+#zebra-modal .zebra-shell{
+  pointer-events:auto;
+  grid-template-columns:1fr;           /* coluna única — formato de visor lateral */
+  width:min(460px, 96vw);
+  height:100dvh; max-height:100dvh;
+  border-radius:22px 0 0 22px; border-right:none;
+  box-shadow:-30px 0 70px -34px rgba(2,6,12,.65), var(--shadow-lg);
+  animation:shellInRight .3s cubic-bezier(.2,.9,.3,1.1);
+}
+@keyframes shellInRight{ from{ opacity:0; transform:translateX(46px); } to{ opacity:1; transform:none; } }
+@media (max-width:520px){ #zebra-modal .zebra-shell{ width:100vw; border-radius:0; } }
 .zebra-close{
   position:absolute; top:14px; right:14px; z-index:5;
   width:34px; height:34px; border-radius:999px; color:var(--muted);
@@ -436,6 +457,14 @@ body{
 .counter-off .cd-value{ color:#3f5a63; text-shadow:none; font-size:2rem; }
 .cd-unit{ font-family:'Inter',sans-serif; font-size:.66rem; line-height:1.15; color:#5b9aa6; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
 
+/* etiquetas impressas desde a última reinicialização (Total Jobs Printed) */
+.cd-since{ display:flex; align-items:baseline; gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed rgba(103,232,249,.14); flex-wrap:wrap; }
+.cd-since-label{ flex-basis:100%; font-family:'Inter',sans-serif; font-size:.56rem; letter-spacing:.1em; text-transform:uppercase; color:#4b7079; }
+.cd-since-val{ font-size:1.55rem; font-weight:700; line-height:1; color:#fde68a; font-variant-numeric:tabular-nums; text-shadow:0 0 10px rgba(251,191,36,.45); }
+.counter-off .cd-since-val{ color:#3f5a63; text-shadow:none; }
+.cd-since-unit{ font-family:'Inter',sans-serif; font-size:.6rem; text-transform:uppercase; letter-spacing:.06em; color:#5b9aa6; font-weight:600; }
+.cd-since.bump .cd-since-val{ animation:cdBump .5s cubic-bezier(.2,.9,.3,1.3); }
+
 .cd-meta{ display:flex; gap:18px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(103,232,249,.12); flex-wrap:wrap; }
 .cd-meta > div{ display:flex; flex-direction:column; gap:2px; }
 .cd-meta span{ font-size:.54rem; letter-spacing:.14em; color:#4b7079; }
@@ -561,6 +590,9 @@ body{
 .ipt-panel[hidden]{ display:none; }
 .ipt-field{ display:flex; flex-direction:column; gap:5px; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
 .ipt-field input{ font-weight:400; text-transform:none; letter-spacing:0; }
+.ipt-label-preview{ margin:0 0 2px; }
+.ipt-label-preview img{ display:block; width:100%; border-radius:12px; border:1px solid var(--card-border); background:#fff; box-shadow:var(--shadow); }
+.ipt-label-preview figcaption{ margin-top:6px; font-size:.68rem; color:var(--muted); text-align:center; line-height:1.3; }
 .ipt-row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 @media (max-width:480px){ .ipt-row2{ grid-template-columns:1fr; } }
 .ipt-summary{ font-size:.76rem; color:var(--muted); padding:8px 11px; border-left:3px solid var(--accent-border); background:var(--accent-soft); border-radius:7px; }

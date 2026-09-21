@@ -148,7 +148,12 @@
           </div>
           <div class="cd-value-row">
             <span id="counter-value" class="cd-value">----</span>
-            <span class="cd-unit">etiquetas<br>impressas</span>
+            <span class="cd-unit">etiquetas<br>no total</span>
+          </div>
+          <div class="cd-since">
+            <span class="cd-since-label">Desde a última reinicialização</span>
+            <b id="counter-reboot" class="cd-since-val">—</b>
+            <span class="cd-since-unit">etiquetas</span>
           </div>
           <div class="cd-meta">
             <div><span>LIGADA HÁ</span><b id="counter-uptime">—</b></div>
@@ -336,6 +341,10 @@
       </div>
 
       <div class="ipt-panel" data-p="label" hidden>
+        <figure class="ipt-label-preview">
+          <img src="template_etiqueta_preview.jpg" alt="Prévia da etiqueta de identificação (logo Hermes Pardini + código e IP)" loading="lazy">
+          <figcaption>Prévia do modelo &middot; o código e o IP entram nos campos escuros</figcaption>
+        </figure>
         <label class="ipt-field"><span>Código / nome</span><input id="ipt-lbl-code" class="side-input" maxlength="28" placeholder="IMP-RECEPCAO-01"></label>
         <label class="ipt-field"><span>IP mostrado na etiqueta</span><input id="ipt-lbl-ip" class="side-input mono" placeholder="172.19.114.51"></label>
         <label class="ipt-field"><span>IP atual (envio)</span><input id="ipt-lbl-target" class="side-input mono" placeholder="172.19.114.50"></label>

@@ -111,10 +111,11 @@ export async function fetchPrinterStatus(ip, apiBaseUrl) {
  * Lê o contador de impressão (Total Jobs Printed) e o uptime do equipamento.
  * Devolve { jobs, uptime, source, foundPath }.
  */
-export async function fetchCounter(ip, apiBaseUrl, knownPath) {
+export async function fetchCounter(ip, apiBaseUrl, knownPath, knownJobPath) {
     if (!ip) return { jobs: null, debug: 'IP vazio' };
     const pathParam = knownPath ? `&path=${encodeURIComponent(knownPath)}` : '';
-    const url = `${apiBaseUrl}?action=counter&ip=${encodeURIComponent(ip)}${pathParam}`;
+    const jobParam = knownJobPath ? `&job_path=${encodeURIComponent(knownJobPath)}` : '';
+    const url = `${apiBaseUrl}?action=counter&ip=${encodeURIComponent(ip)}${pathParam}${jobParam}`;
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 9000);
     try {
@@ -132,10 +133,20 @@ export async function fetchCounter(ip, apiBaseUrl, knownPath) {
             (p && p.v ? `proxy v${p.v} · action=counter OK\n` : `AVISO: resposta não é do proxy novo (talvez proxy.php desatualizado)\n`) +
             `RESPOSTA:\n${text.slice(0, 900)}`;
 
-        if (p && p.jobs !== null && p.jobs !== undefined) {
-            return { jobs: p.jobs, uptime: p.uptime || null, source: p.source || null, foundPath: p.found_path || null, debug };
+        const hasTotal = p && p.jobs !== null && p.jobs !== undefined;
+        const hasReboot = p && p.since_reboot !== null && p.since_reboot !== undefined;
+        if (hasTotal || hasReboot) {
+            return {
+                jobs: hasTotal ? p.jobs : null,
+                sinceReboot: hasReboot ? p.since_reboot : null,
+                uptime: p.uptime || null,
+                source: p.source || null,
+                foundPath: p.found_path || null,
+                foundJobPath: p.found_job_path || null,
+                debug
+            };
         }
-        return { jobs: null, debug };
+        return { jobs: null, sinceReboot: null, debug };
     } catch (e) {
         clearTimeout(t);
         return { jobs: null, error: true, debug: `[DIAGNÓSTICO CONTADOR]\nURL: ${url}\nERRO: ${e.name === 'AbortError' ? 'timeout (9s)' : e.message}` };
