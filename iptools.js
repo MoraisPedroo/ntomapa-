@@ -110,9 +110,19 @@ function usePrinter(p) {
     $('ipt-cfg-newip').value = p.ip.split('.').slice(0, 3).join('.') + '.';
     $('ipt-lbl-target').value = p.ip;
     $('ipt-lbl-ip').value = p.ip;
+    updateLabelPreview();
     setStatus(`Selecionada: ${p.ip} · S/N ${p.serial}`, 'ok');
     closeIpToolsModal();              // fecha a caixinha…
     if (onUse) onUse(p.ip);          // …e abre só o painel virtual
+}
+
+// Preenche a prévia da etiqueta em cima da imagem: nome em cima, IP embaixo.
+function updateLabelPreview() {
+    const codeEl = $('ipt-lbl-code-preview');
+    const ipEl = $('ipt-lbl-ip-preview');
+    if (!codeEl || !ipEl) return;
+    codeEl.textContent = ($('ipt-lbl-code').value || '').toUpperCase().trim();
+    ipEl.textContent = ($('ipt-lbl-ip').value || '').trim();
 }
 
 async function doScan() {
@@ -212,6 +222,7 @@ export function openIpToolsModal(prefillIp) {
         $('ipt-scan-base').value = ip;
     }
     $('ipt-target-ip').textContent = ip || 'nenhum';
+    updateLabelPreview();
     setStatus('Pronto.');
     $('iptools-modal').classList.remove('hidden');
 }
@@ -230,4 +241,6 @@ export function initIpTools({ apiGetter, onUsePrinter }) {
     $('ipt-scan-filter').addEventListener('input', renderScanResults);
     $('ipt-cfg-btn').addEventListener('click', doConfig);
     $('ipt-lbl-btn').addEventListener('click', doLabel);
+    $('ipt-lbl-code').addEventListener('input', updateLabelPreview);
+    $('ipt-lbl-ip').addEventListener('input', updateLabelPreview);
 }

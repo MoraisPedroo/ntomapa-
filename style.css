@@ -254,27 +254,6 @@ body{
 :root[data-theme="dark"] .zebra-shell{ background:linear-gradient(180deg, rgba(17,26,40,.97), rgba(9,14,23,.98)); }
 @keyframes shellIn{ from{ opacity:0; transform:translateY(18px) scale(.97);} to{ opacity:1; transform:none;} }
 @media (max-width:920px){ .zebra-shell{ grid-template-columns:1fr; } }
-
-/* ------------------------------------------------------------------
-   Visor encostado à direita, flutuando SOBRE o mapa (não escurece) —
-   simula o visor da impressora ao lado do mapa.
------------------------------------------------------------------- */
-#zebra-modal{
-  background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none;
-  justify-content:flex-end; align-items:stretch; padding:0;
-  pointer-events:none;                 /* deixa o mapa visível e clicável ao lado */
-}
-#zebra-modal .zebra-shell{
-  pointer-events:auto;
-  grid-template-columns:1fr;           /* coluna única — formato de visor lateral */
-  width:min(460px, 96vw);
-  height:100dvh; max-height:100dvh;
-  border-radius:22px 0 0 22px; border-right:none;
-  box-shadow:-30px 0 70px -34px rgba(2,6,12,.65), var(--shadow-lg);
-  animation:shellInRight .3s cubic-bezier(.2,.9,.3,1.1);
-}
-@keyframes shellInRight{ from{ opacity:0; transform:translateX(46px); } to{ opacity:1; transform:none; } }
-@media (max-width:520px){ #zebra-modal .zebra-shell{ width:100vw; border-radius:0; } }
 .zebra-close{
   position:absolute; top:14px; right:14px; z-index:5;
   width:34px; height:34px; border-radius:999px; color:var(--muted);
@@ -591,7 +570,15 @@ body{
 .ipt-field{ display:flex; flex-direction:column; gap:5px; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
 .ipt-field input{ font-weight:400; text-transform:none; letter-spacing:0; }
 .ipt-label-preview{ margin:0 0 2px; }
-.ipt-label-preview img{ display:block; width:100%; border-radius:12px; border:1px solid var(--card-border); background:#fff; box-shadow:var(--shadow); }
+.lblp-canvas{ position:relative; container-type:inline-size; border-radius:12px; overflow:hidden; border:1px solid var(--card-border); box-shadow:var(--shadow); background:#fff; }
+.lblp-canvas img{ display:block; width:100%; }
+.lblp-code, .lblp-ip{
+  position:absolute; left:57.5%; transform:translate(-50%,-50%);
+  font-family:'JetBrains Mono', monospace; font-weight:700; white-space:nowrap;
+  pointer-events:none; line-height:1;
+}
+.lblp-code{ top:29%; color:#fff; font-size:9cqw; }        /* dentro da barra preta */
+.lblp-ip{ top:63%; color:#0a0a0a; font-size:8.4cqw; }     /* área branca de baixo */
 .ipt-label-preview figcaption{ margin-top:6px; font-size:.68rem; color:var(--muted); text-align:center; line-height:1.3; }
 .ipt-row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 @media (max-width:480px){ .ipt-row2{ grid-template-columns:1fr; } }
