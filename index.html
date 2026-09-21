@@ -12,7 +12,7 @@
 <body>
   <div class="bg-fx"></div>
 
-  <div id="main-wrapper" class="container mx-auto p-4 md:p-8 container-with-sidebar">
+  <div id="main-wrapper" class="container mx-auto p-4 md:p-8">
     <header class="app-header">
       <div class="app-brand">
         <div class="app-logo">
@@ -37,6 +37,67 @@
           </form>
           <div id="search-results"></div>
         </div>
+
+        <!-- Ferramentas de rede (substitui a antiga barra lateral) -->
+        <div id="tools-menu" class="tools-menu">
+          <button id="tools-btn" class="ghost-btn" aria-haspopup="true" aria-expanded="false" title="Ferramentas de rede">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            <span class="hide-sm">Ferramentas</span>
+            <svg class="tools-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+
+          <div id="tools-pop" class="tools-pop" data-view="menu" hidden>
+            <!-- Tela: grade de ferramentas -->
+            <div class="tools-view" data-v="menu">
+              <div class="tools-grid">
+                <button class="tool-card" data-tool="extip">
+                  <span class="tc-ico ico-sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 18v2M17.5 18v2M9 10h.01M12 10h3"/></svg></span>
+                  <span class="tc-name">IP externo</span>
+                  <span class="tc-sub">Abrir o visor de um IP</span>
+                </button>
+                <button class="tool-card" data-tool="broadcast">
+                  <span class="tc-ico ico-cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 4.9a10 10 0 000 14.2M19.1 4.9a10 10 0 010 14.2M7.8 7.8a6 6 0 000 8.4M16.2 7.8a6 6 0 010 8.4"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg></span>
+                  <span class="tc-name">Broadcast</span>
+                  <span class="tc-sub">Varrer a rede /24</span>
+                </button>
+                <button class="tool-card" data-tool="labels">
+                  <span class="tc-ico ico-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12l-8 8-9-9V4h7z"/><circle cx="7.5" cy="7.5" r="1.4" fill="currentColor" stroke="none"/></svg></span>
+                  <span class="tc-name">Etiquetas</span>
+                  <span class="tc-sub">Imprimir identificação</span>
+                </button>
+                <button class="tool-card" data-tool="fixip">
+                  <span class="tc-ico ico-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></span>
+                  <span class="tc-name">Fixar IP</span>
+                  <span class="tc-sub">Configurar IP estático</span>
+                </button>
+                <button class="tool-card tool-card-wide" data-tool="apilink">
+                  <span class="tc-ico ico-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 14.5l5-5M8 12l-2 2a3 3 0 104.2 4.2l2-2M16 12l2-2a3 3 0 10-4.2-4.2l-2 2"/></svg></span>
+                  <span class="tc-name">Link do túnel</span>
+                  <span class="tc-sub">Ver e alterar o link Cloudflare</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Tela: IP externo -->
+            <div class="tools-view" data-v="extip">
+              <button class="tools-back" data-back type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg> Ferramentas</button>
+              <label class="tools-flabel">IP do equipamento</label>
+              <input id="tool-extip-input" class="side-input mono" placeholder="172.19.114.50" autocomplete="off">
+              <button id="tool-extip-go" class="tools-primary" type="button">Abrir visor</button>
+              <p class="tools-hint">Abre o painel virtual como se fosse uma impressora instalada.</p>
+            </div>
+
+            <!-- Tela: link do túnel -->
+            <div class="tools-view" data-v="apilink">
+              <button class="tools-back" data-back type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg> Ferramentas</button>
+              <label class="tools-flabel">Link atual do túnel</label>
+              <div id="display-api-url" class="api-url mono">...</div>
+              <input id="new-api-url" class="side-input mono" placeholder="https://...trycloudflare.com/proxy.php" autocomplete="off">
+              <button id="btn-save-api-url" class="tools-primary" type="button">Salvar link</button>
+            </div>
+          </div>
+        </div>
+
         <button id="add-printer-btn" class="ghost-btn" title="Adicionar impressora ao mapa">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
           <span class="hide-sm">Adicionar</span>
@@ -358,57 +419,6 @@
       <div id="ipt-status" class="ipt-status">Pronto.</div>
     </div>
   </div>
-
-  <aside id="ip-tools-sidebar">
-    <button id="collapse-panel">—</button>
-    <div class="sidebar-scroll-area">
-        <div class="header">
-          <h3>IP Tools</h3>
-          <span class="header-tag">túnel corporativo</span>
-        </div>
-
-        <div class="api-config">
-            <label class="section-label warn">Configuração API</label>
-            <div class="hint-label">Link atual:</div>
-            <div id="display-api-url" class="api-url mono">...</div>
-            <input id="new-api-url" type="text" placeholder="Novo link..." class="side-input mono" />
-            <button id="btn-save-api-url" class="side-btn dark w-full mt-1">Atualizar link</button>
-        </div>
-
-        <div>
-            <label class="section-label">IP do equipamento</label>
-            <div class="controls mt-2">
-                <input id="ip-input-panel" type="text" placeholder="172.19..." class="side-input mono" />
-                <button id="set-ip-panel" class="side-btn sky">Definir</button>
-            </div>
-        </div>
-
-        <div id="panel-buttons">
-            <button id="btn-status-panel" class="side-btn blue">Status</button>
-            <button id="btn-open-web-panel" class="side-btn sky">Interface</button>
-            <button id="btn-restart-panel" class="side-btn red">Reiniciar</button>
-            <button id="btn-zt421-panel" class="side-btn indigo">ZT421</button>
-            <button id="btn-calibrate-panel" class="side-btn green">Calibrar</button>
-            <button id="btn-headtest-panel" class="side-btn purple">Teste Cabeça</button>
-        </div>
-
-        <button id="btn-iptools-panel" class="side-btn cyan w-full">🛰️ Config &amp; Broadcast (rede)</button>
-
-        <div>
-            <label class="section-label">IP atual</label>
-            <div id="panel-current-ip" class="mono">nenhum</div>
-        </div>
-
-        <div>
-            <label class="section-label">Comando ZPL manual</label>
-            <textarea id="panel-rawcmd" class="side-input mono w-full mt-1" rows="4"></textarea>
-            <button id="btn-send-raw-panel" class="side-btn terminal w-full mt-2 mono">Enviar &gt;_</button>
-        </div>
-
-        <div><div id="panel-log"></div></div>
-        <div class="mt-auto footer-note">proxy.php &middot; porta 9100</div>
-    </div>
-  </aside>
 
   <script type="module" src="./main.js"></script>
   <footer class="app-footer"><a href="https://www.siterastreio.com.br/" target="_blank" rel="noopener">Rastreamento</a></footer>

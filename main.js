@@ -157,8 +157,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentPrinterIp = printer.ip;
         currentPrinter = printer;
         openZebraPanel(printer, apiGetter, { onEdit: openEditForm, onDelete: confirmDelete });
-        document.getElementById('ip-input-panel').value = printer.ip;
-        document.getElementById('panel-current-ip').textContent = printer.ip;
         logPanel(`Selecionado: ${printer.name} (${printer.ip})`);
     }
 
@@ -170,7 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // DP IP-Tools (config, etiqueta, broadcast) — usa a impressora escolhida no scan p/ abrir o painel
-    initIpTools({ apiGetter, onUsePrinter: (ip) => { document.getElementById('ip-input-panel').value = ip; openPanelForIp(ip); } });
+    initIpTools({ apiGetter, onUsePrinter: (ip) => openPanelForIp(ip) });
 
     /* -------------------- Posicionamento no mapa -------------------- */
     function enterPlacingMode(cb) {
@@ -289,50 +287,72 @@ document.addEventListener('DOMContentLoaded', async () => {
         logPanel(`Excluída: ${printer.name} (${printer.ip})`);
     }
 
-    /* -------------------- Painel lateral (IP Tools) -------------------- */
-    document.getElementById('btn-status-panel').addEventListener('click', async () => {
-        if (!currentPrinterIp) { showToast('IP inválido!'); return; }
-        logPanel(`Status -> consultando ${currentPrinterIp} ...`);
-        const res = await fetchPrinterStatus(currentPrinterIp, API_BASE_URL);
-        const label = STATE_LABELS[res.state] || res.state;
-        showToast(`${currentPrinterIp}: ${label}`);
-        logPanel(`Status: ${label}${res.detail ? ' — ' + res.detail : ''}`);
-    });
-    document.getElementById('btn-open-web-panel').addEventListener('click', () => {
-        if (!currentPrinterIp) { showToast('Defina um IP primeiro.'); return; }
-        const wp = currentPrinter && currentPrinter.ip === currentPrinterIp ? (currentPrinter.webPath || '') : '';
-        openBrowserWindow(currentPrinterIp + wp, API_BASE_URL);
-    });
-    document.getElementById('btn-restart-panel').addEventListener('click', () => {
-        if (confirm('Reiniciar?')) sendCommand('~JR', 'Reiniciar', currentPrinterIp, API_BASE_URL);
-    });
-    document.getElementById('btn-calibrate-panel').addEventListener('click', () => sendCommand(CALIBRAGEM, 'Calibrar', currentPrinterIp, API_BASE_URL));
-    document.getElementById('btn-headtest-panel').addEventListener('click', () => sendCommand(TESTE_CABECA, 'Teste Cabeça', currentPrinterIp, API_BASE_URL));
-    document.getElementById('btn-zt421-panel').addEventListener('click', () => {
-        if (confirm('Enviar configuração ZT421 (imprime etiqueta de teste)?')) sendCommand(ZT421_CONFIG, 'ZT421', currentPrinterIp, API_BASE_URL);
-    });
-    document.getElementById('btn-send-raw-panel').addEventListener('click', () => {
-        sendCommand(document.getElementById('panel-rawcmd').value, 'Manual', currentPrinterIp, API_BASE_URL);
-    });
-    document.getElementById('set-ip-panel').addEventListener('click', () => {
-        const val = document.getElementById('ip-input-panel').value.trim();
-        if (!val) return;
-        document.getElementById('panel-current-ip').textContent = val;
-        logPanel(`IP definido: ${val}`);
-        openPanelForIp(val); // abre também o PAINEL VIRTUAL · LINK-OS para esse IP
-    });
-
-    // Config & Broadcast (DP IP-Tools)
-    document.getElementById('btn-iptools-panel').addEventListener('click', () => {
-        openIpToolsModal(currentPrinterIp || document.getElementById('ip-input-panel').value.trim());
-    });
+    /* -------------------- Ferramentas (menu do cabeçalho) -------------------- */
+    // O visor (aberto ao clicar numa impressora ou em "IP externo") já traz
+    // Status, Interface, Reiniciar, Calibrar, ZT421, contador e comandos ZPL —
+    // por isso a antiga barra lateral foi aposentada.
     document.getElementById('zp-iptools').addEventListener('click', () => openIpToolsModal(currentPrinterIp));
+    setupToolsMenu();
 
-    document.getElementById('collapse-panel').addEventListener('click', () => {
-        const side = document.getElementById('ip-tools-sidebar');
-        side.classList.toggle('collapsed');
-        document.getElementById('collapse-panel').textContent = side.classList.contains('collapsed') ? '+' : '—';
-    });
+    function setupToolsMenu() {
+        const menu = document.getElementById('tools-menu');
+        const btn = document.getElementById('tools-btn');
+        const pop = document.getElementById('tools-pop');
+        if (!menu || !btn || !pop) return;
+
+        const showView = (v) => { pop.dataset.view = v; };
+        // mantém o popover dentro da tela (offsetLeft ignora o transform da animação)
+        const clampPop = () => {
+            pop.style.left = ''; pop.style.right = '0';
+            const host = pop.offsetParent || menu;
+            const hostLeft = host.getBoundingClientRect().left;
+            if (hostLeft + pop.offsetLeft < 12) { pop.style.right = 'auto'; pop.style.left = (12 - hostLeft) + 'px'; }
+        };
+        const openPop = () => {
+            showView('menu');
+            pop.hidden = false;
+            clampPop();
+            requestAnimationFrame(() => menu.classList.add('open'));
+            btn.setAttribute('aria-expanded', 'true');
+        };
+        const closePop = () => {
+            menu.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+            setTimeout(() => { if (!menu.classList.contains('open')) pop.hidden = true; }, 220);
+        };
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menu.classList.contains('open') ? closePop() : openPop();
+        });
+        pop.addEventListener('click', (e) => e.stopPropagation());
+        document.addEventListener('click', () => { if (menu.classList.contains('open')) closePop(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menu.classList.contains('open')) closePop(); });
+        window.addEventListener('resize', () => { if (menu.classList.contains('open')) clampPop(); });
+        pop.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => showView('menu')));
+
+        pop.querySelectorAll('.tool-card').forEach(card => {
+            card.addEventListener('click', () => {
+                switch (card.dataset.tool) {
+                    case 'broadcast': closePop(); openIpToolsModal('', 'scan'); break;
+                    case 'labels':    closePop(); openIpToolsModal('', 'label'); break;
+                    case 'fixip':     closePop(); openIpToolsModal('', 'config'); break;
+                    case 'extip':     showView('extip'); setTimeout(() => document.getElementById('tool-extip-input').focus(), 60); break;
+                    case 'apilink':   showView('apilink'); setTimeout(() => document.getElementById('new-api-url').focus(), 60); break;
+                }
+            });
+        });
+
+        const goExtIp = () => {
+            const ip = document.getElementById('tool-extip-input').value.trim();
+            if (!ip) return;
+            closePop();
+            logPanel(`IP externo: ${ip}`);
+            openPanelForIp(ip);
+        };
+        document.getElementById('tool-extip-go').addEventListener('click', goExtIp);
+        document.getElementById('tool-extip-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') goExtIp(); });
+    }
 
     floorSelect.addEventListener('change', (e) => {
         currentFloor = parseInt(e.target.value);

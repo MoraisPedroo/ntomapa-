@@ -213,7 +213,7 @@ async function doLabel() {
     else setStatus('Falha ao enviar a etiqueta.', 'err');
 }
 
-export function openIpToolsModal(prefillIp) {
+export function openIpToolsModal(prefillIp, tab) {
     const ip = (prefillIp || '').trim();
     if (ip) {
         $('ipt-cfg-target').value = ip;
@@ -224,6 +224,7 @@ export function openIpToolsModal(prefillIp) {
     $('ipt-target-ip').textContent = ip || 'nenhum';
     updateLabelPreview();
     setStatus('Pronto.');
+    if (tab) activateTab(tab);              // abre já na aba certa (scan/config/label)
     $('iptools-modal').classList.remove('hidden');
 }
 export function closeIpToolsModal() { $('iptools-modal').classList.add('hidden'); }
