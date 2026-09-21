@@ -26,17 +26,44 @@
         </div>
       </div>
       <div class="app-controls">
+        <div class="floor-pill">
+          <label for="floor-select">Andar</label>
+          <select id="floor-select">
+            <option value="1">1º Andar</option>
+            <option value="2">2º Andar</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <div id="add-mode-banner" class="add-mode-banner hidden">
+      <span>🖱️ Clique no mapa para posicionar a nova impressora</span>
+      <button id="add-mode-cancel">Cancelar</button>
+    </div>
+
+    <main id="map-and-content">
+      <!-- Barra de ferramentas ao lado do mapa -->
+      <div id="map-toolbar" class="map-toolbar">
         <div id="search-container">
           <form id="search-form" class="flex items-center" onsubmit="return false">
-            <input id="search-input" type="text" placeholder="Buscar por nome, IP ou setor..." autocomplete="off">
             <div id="search-hitbox" class="icon-hitbox">
               <button type="button" id="search-icon-btn" class="w-10 h-10 flex items-center justify-center">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
               </button>
             </div>
+            <input id="search-input" type="text" placeholder="Buscar por nome, IP ou setor..." autocomplete="off">
           </form>
           <div id="search-results"></div>
         </div>
+
+        <button id="add-printer-btn" class="mtb-btn" data-tip="Adicionar impressora" title="Adicionar impressora ao mapa" aria-label="Adicionar impressora">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+
+        <button id="theme-toggle" class="mtb-btn" data-tip="Tema claro / escuro" title="Alternar tema claro/escuro" aria-label="Alternar tema">
+          <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+          <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+        </button>
 
         <!-- Ferramentas — botão-maleta circular; opções abrem para baixo -->
         <div id="tools-menu" class="tools-fab">
@@ -72,32 +99,9 @@
             </button>
           </div>
         </div>
-
-        <button id="add-printer-btn" class="ghost-btn" title="Adicionar impressora ao mapa">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          <span class="hide-sm">Adicionar</span>
-        </button>
-        <button id="theme-toggle" class="ghost-btn icon-only" title="Alternar tema claro/escuro" aria-label="Alternar tema">
-          <svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
-          <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
-        </button>
-        <div class="floor-pill">
-          <label for="floor-select">Andar</label>
-          <select id="floor-select">
-            <option value="1">1º Andar</option>
-            <option value="2">2º Andar</option>
-          </select>
-        </div>
       </div>
-    </header>
 
-    <div id="add-mode-banner" class="add-mode-banner hidden">
-      <span>🖱️ Clique no mapa para posicionar a nova impressora</span>
-      <button id="add-mode-cancel">Cancelar</button>
-    </div>
-
-    <main id="map-and-content">
-      <div id="map-container" class="relative mx-auto" style="width: min(3840px, 92vw); aspect-ratio: 1920 / 1358;">
+      <div id="map-container" class="relative" style="width: min(3792px, calc(92vw - 68px)); aspect-ratio: 1920 / 1358;">
         <div id="map-inner" class="relative w-full h-full">
           <img id="map-image" src="plantanto.jpg?v=3" alt="Planta" class="w-full h-full object-contain">
         </div>

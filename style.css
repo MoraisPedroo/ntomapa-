@@ -194,6 +194,45 @@ body{
 }
 .tools-primary:hover{ filter:brightness(1.07); transform:translateY(-1px); }
 .tools-primary:active{ transform:translateY(0) scale(.99); }
+
+/* ============================================================
+   BARRA DE FERRAMENTAS AO LADO DO MAPA
+   ============================================================ */
+#map-and-content{ display:flex; align-items:flex-start; justify-content:center; gap:14px; }
+.map-toolbar{
+  flex:0 0 44px; width:44px; align-self:stretch;
+  display:flex; flex-direction:column; align-items:center; gap:11px;
+  position:sticky; top:16px; z-index:50;
+}
+/* botões redondos (adicionar / tema) */
+.mtb-btn{
+  position:relative; width:44px; height:44px; border-radius:50%; flex-shrink:0;
+  display:inline-flex; align-items:center; justify-content:center;
+  color:var(--txt); background:var(--card-strong); border:1px solid var(--card-border);
+  box-shadow:var(--shadow); transition:transform .16s ease, border-color .16s ease, color .16s ease;
+}
+.mtb-btn svg{ width:18px; height:18px; }
+.mtb-btn:hover{ border-color:var(--accent-border); color:var(--accent); transform:translateY(-1px); }
+.mtb-btn:active{ transform:scale(.94); }
+.mtb-btn .ico-moon{ display:none; }
+/* descrição no hover (à direita, sobre o mapa) */
+.mtb-btn::after{
+  content:attr(data-tip); position:absolute; left:calc(100% + 10px); top:50%;
+  transform:translateY(-50%) translateX(-4px); white-space:nowrap; z-index:130;
+  font-size:.72rem; font-weight:600; color:var(--txt);
+  background:var(--panel-solid); border:1px solid var(--card-border); border-radius:9px; padding:6px 11px;
+  box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .16s ease, transform .16s ease;
+}
+.mtb-btn:hover::after{ opacity:1; transform:translateY(-50%) translateX(0); }
+
+/* busca dentro da barra: expande para a DIREITA, sobre o mapa, sem empurrar */
+.map-toolbar #search-container{ align-self:flex-start; justify-content:flex-start; }
+.map-toolbar #search-results{ right:auto; left:0; }
+
+@media (max-width:640px){
+  #map-and-content{ gap:9px; }
+  .map-toolbar{ gap:9px; }
+}
 .ghost-btn{
   display:inline-flex; align-items:center; gap:8px; font-size:.82rem; font-weight:600; color:var(--txt);
   background:var(--card-strong); border:1px solid var(--card-border); border-radius:12px; padding:9px 14px;

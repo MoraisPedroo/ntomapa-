@@ -419,15 +419,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Mantém o dropdown dentro da tela (em telas estreitas ele encostaria
     // fora da borda esquerda por causa do alinhamento à direita da busca).
     function clampResultsToViewport() {
-        searchResults.style.left = '';
-        searchResults.style.right = '0';
+        // ancorado à esquerda (a busca fica na barra lateral do mapa)
+        searchResults.style.right = 'auto';
+        searchResults.style.left = '0';
         const parent = searchResults.offsetParent;
         if (!parent) return;
-        const r = searchResults.getBoundingClientRect();
         const gutter = 12;
-        if (r.left < gutter) {
+        const r = searchResults.getBoundingClientRect();
+        const overRight = r.right - (window.innerWidth - gutter);
+        if (overRight > 0) searchResults.style.left = (-overRight) + 'px';
+        const r2 = searchResults.getBoundingClientRect();
+        if (r2.left < gutter) {
             const pr = parent.getBoundingClientRect();
-            searchResults.style.right = 'auto';
             searchResults.style.left = (gutter - pr.left) + 'px';
         }
     }
