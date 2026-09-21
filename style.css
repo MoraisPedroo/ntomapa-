@@ -229,9 +229,41 @@ body{
 .map-toolbar #search-container{ align-self:flex-start; justify-content:flex-start; }
 .map-toolbar #search-results{ right:auto; left:0; }
 
-@media (max-width:640px){
-  #map-and-content{ gap:9px; }
-  .map-toolbar{ gap:9px; }
+/* ---------- MOBILE: barra estilo Instagram no rodapé ---------- */
+@media (max-width:720px){
+  #map-and-content{ display:block; padding-bottom:calc(84px + env(safe-area-inset-bottom)); }
+  #map-container{ width:min(3792px, 96vw) !important; margin-left:auto; margin-right:auto; }
+
+  .map-toolbar{
+    position:fixed; left:0; right:0; bottom:0; top:auto; z-index:90;
+    width:auto; flex-direction:row; justify-content:space-around; align-items:center;
+    gap:0; padding:9px 20px calc(9px + env(safe-area-inset-bottom));
+    background:var(--panel-solid); border-top:1px solid var(--card-border);
+    box-shadow:0 -10px 26px -14px rgba(2,6,12,.45);
+  }
+  /* ícones "achatados" na barra (só a maleta continua em destaque) */
+  .map-toolbar .mtb-btn{ background:transparent; border:none; box-shadow:none; }
+  .map-toolbar .mtb-btn:hover{ transform:none; color:var(--txt); }
+  .map-toolbar .mtb-btn:active{ color:var(--accent); }
+  .map-toolbar #search-container:not(.expanded){ background:transparent; border:none; }
+
+  /* speed-dial abre para CIMA */
+  .fab-items{ top:auto; bottom:calc(100% + 14px); flex-direction:column-reverse; }
+  .tools-fab .fab-item{ transform:translateY(16px) scale(.4); }
+  .tools-fab.open .fab-item{ transform:none; }
+  .fab-item{ box-shadow:var(--shadow-lg); }
+
+  /* busca ocupa uma barra acima do rodapé; resultados sobem */
+  .map-toolbar #search-container.expanded{
+    position:fixed; left:12px; right:12px; width:auto; height:46px; z-index:95;
+    bottom:calc(82px + env(safe-area-inset-bottom));
+    background:var(--card-strong); border:1px solid var(--card-border); border-radius:14px;
+  }
+  .map-toolbar #search-container.expanded #search-input{ width:100% !important; flex:1; }
+  .map-toolbar #search-results{
+    top:auto !important; bottom:calc(100% + 8px) !important; left:0 !important; right:0 !important;
+    width:auto !important; max-height:54vh;
+  }
 }
 .ghost-btn{
   display:inline-flex; align-items:center; gap:8px; font-size:.82rem; font-weight:600; color:var(--txt);

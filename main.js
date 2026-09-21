@@ -376,7 +376,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const searchInput = document.getElementById('search-input');
     const searchResults = document.getElementById('search-results');
     document.getElementById('search-hitbox').addEventListener('click', () => {
-        document.getElementById('search-container').classList.toggle('expanded');
+        const expanded = document.getElementById('search-container').classList.toggle('expanded');
+        if (expanded) setTimeout(() => searchInput.focus(), 60); // abre o teclado no mobile
     });
     searchInput.addEventListener('input', debounce(() => {
         const term = searchInput.value.toLowerCase().trim();
