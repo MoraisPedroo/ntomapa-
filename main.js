@@ -115,7 +115,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             tooltip.innerHTML = `<strong>${printer.name}</strong><br>SELB: ${printer.selb} (Andar ${printer.floor})${stLine}`;
             const pRect = e.currentTarget.getBoundingClientRect();
             const cRect = mapContainer.getBoundingClientRect();
-            tooltip.style.top = `${pRect.top - cRect.top}px`;
+            const topInMap = pRect.top - cRect.top;
+            // se o ponto está muito no alto, a dica vira para baixo (senão é cortada)
+            tooltip.classList.toggle('below', topInMap < 74);
+            tooltip.style.top = `${topInMap}px`;
             tooltip.style.left = `${pRect.left - cRect.left}px`;
             tooltip.classList.add('show');
         });
@@ -136,14 +139,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!point) return;
         point.classList.add('highlighted');
 
+        // zera o transform antes de medir (senão a conta acumula e "some" no topo)
+        mapInner.style.transition = 'none';
+        mapInner.style.transform = '';
+        void mapInner.offsetWidth;
+        mapInner.style.transition = '';
+
         const pRect = point.getBoundingClientRect();
         const mRect = mapContainer.getBoundingClientRect();
         const scale = 1.4;
-        const pCX = (pRect.left - mRect.left) + pRect.width / 2;
-        const pCY = (pRect.top - mRect.top) + pRect.height / 2;
-        const dx = mRect.width / 2 - pCX * scale;
-        const dy = mRect.height / 2 - pCY * scale;
-        mapInner.style.transform = `scale(${scale}) translate(${dx}px, ${dy}px)`;
+        const pX = (pRect.left - mRect.left) + pRect.width / 2;   // centro do ponto (sem transform)
+        const pY = (pRect.top - mRect.top) + pRect.height / 2;
+        let dx = mRect.width / 2 - scale * pX;
+        let dy = mRect.height / 2 - scale * pY;
+        // trava o deslocamento p/ o mapa (ampliado) sempre cobrir a moldura — nada de área branca
+        const minX = mRect.width - scale * mRect.width, minY = mRect.height - scale * mRect.height;
+        dx = Math.max(minX, Math.min(0, dx));
+        dy = Math.max(minY, Math.min(0, dy));
+        mapInner.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
 
         transientLabel = document.createElement('div');
         transientLabel.className = 'focus-label';
@@ -162,7 +175,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     function selectPrinter(printer) {
         currentPrinterIp = printer.ip;
         currentPrinter = printer;
-        openZebraPanel(printer, apiGetter, { onEdit: openEditForm, onDelete: confirmDelete });
+        openZebraPanel(printer, apiGetter, {
+            onEdit: openEditForm,
+            onDelete: confirmDelete,
+            // status muda no visor (ex.: resolveu a pausa) -> repinta o ponto no mapa
+            onStatus: (id, state, detail) => { printerStatus[id] = { state, detail }; applyPointStatus(id); }
+        });
         logPanel(`Selecionado: ${printer.name} (${printer.ip})`);
     }
 
@@ -327,7 +345,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /* -------------------- Check-up da rede -------------------- */
     let checkupRunning = false;
-    let lastCheckup = null;   // resultado em cache (some ao recarregar a página)
+    let lastCheckup = null;      // resultado em cache (some ao recarregar a página)
+    let checkupResults = [];     // resultados atuais (p/ filtrar)
+    let checkupFilter = 'bad';   // filtro: 'bad' (padrão) | 'ok' | 'att' | 'prob' | 'off'
     (function initCheckupModal() {
         const modal = document.getElementById('checkup-modal');
         if (!modal) return;
@@ -402,49 +422,70 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderCheckup(results);
     }
 
+    const CK_KIND = (s) => s === 'OFFLINE' ? 'off'
+        : (['PAUSED', 'UNKNOWN', 'CONNECTING'].includes(s) ? 'att'
+        : (['READY', 'ONLINE'].includes(s) ? 'ok' : 'prob'));
+
     function renderCheckup(results) {
+        checkupResults = results;
         const progress = document.getElementById('ck-progress');
         const summary = document.getElementById('ck-summary');
-        const listEl = document.getElementById('ck-list');
         const rerun = document.getElementById('ck-rerun');
         progress.hidden = true; rerun.hidden = false;
 
-        const sev = (s) => (CK_SEV[s] ?? 2);
-        const bad = results.filter(r => sev(r.state) <= 2).sort((a, b) => sev(a.state) - sev(b.state) || a.printer.name.localeCompare(b.printer.name));
-        const off = results.filter(r => r.state === 'OFFLINE').length;
-        const prob = results.filter(r => ['ERROR', 'HEAD_OPEN', 'RIBBON_OUT', 'MEDIA_OUT'].includes(r.state)).length;
-        const att = results.filter(r => ['PAUSED', 'UNKNOWN', 'CONNECTING'].includes(r.state)).length;
-        const ok = results.length - off - prob - att;
+        const c = { ok: 0, att: 0, prob: 0, off: 0 };
+        results.forEach(r => c[CK_KIND(r.state)]++);
 
         summary.hidden = false;
         summary.innerHTML =
-            `<div class="ck-stat ok"><b>${ok}</b><span>OK</span></div>` +
-            `<div class="ck-stat att"><b>${att}</b><span>atenção</span></div>` +
-            `<div class="ck-stat prob"><b>${prob}</b><span>problema</span></div>` +
-            `<div class="ck-stat off"><b>${off}</b><span>offline</span></div>`;
+            `<button class="ck-stat ok" data-f="ok" type="button"><b>${c.ok}</b><span>OK</span></button>` +
+            `<button class="ck-stat att" data-f="att" type="button"><b>${c.att}</b><span>atenção</span></button>` +
+            `<button class="ck-stat prob" data-f="prob" type="button"><b>${c.prob}</b><span>problema</span></button>` +
+            `<button class="ck-stat off" data-f="off" type="button"><b>${c.off}</b><span>offline</span></button>`;
+        summary.querySelectorAll('.ck-stat').forEach(t => t.addEventListener('click', () => {
+            checkupFilter = (checkupFilter === t.dataset.f) ? 'bad' : t.dataset.f;  // clicar de novo tira o filtro
+            renderCheckupList();
+        }));
 
-        if (!bad.length) {
-            listEl.innerHTML = `<div class="ck-allok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5-5.5"/></svg> Todas as impressoras estão OK!</div>`;
+        checkupFilter = 'bad';
+        renderCheckupList();
+    }
+
+    function renderCheckupList() {
+        const listEl = document.getElementById('ck-list');
+        const summary = document.getElementById('ck-summary');
+        summary.querySelectorAll('.ck-stat').forEach(t => t.classList.toggle('active', t.dataset.f === checkupFilter));
+
+        const sev = (s) => (CK_SEV[s] ?? 2);
+        const items = (checkupFilter === 'bad'
+            ? checkupResults.filter(r => sev(r.state) <= 2)
+            : checkupResults.filter(r => CK_KIND(r.state) === checkupFilter))
+            .sort((a, b) => sev(a.state) - sev(b.state) || a.printer.name.localeCompare(b.printer.name));
+
+        if (!items.length) {
+            listEl.innerHTML = checkupFilter === 'bad'
+                ? `<div class="ck-allok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5-5.5"/></svg> Todas as impressoras estão OK!</div>`
+                : `<div class="ck-empty-f">Nenhuma impressora nesse filtro.</div>`;
             return;
         }
         listEl.innerHTML = '';
-        bad.forEach(r => {
-            const kind = r.state === 'OFFLINE' ? 'off' : (['PAUSED', 'UNKNOWN', 'CONNECTING'].includes(r.state) ? 'att' : 'prob');
-            const row = document.createElement('button');
-            row.className = 'ck-row ' + kind;
-            row.type = 'button';
+        const closeModal = () => document.getElementById('checkup-modal').classList.add('hidden');
+        const goFloor = (p) => { if (p.floor !== currentFloor) { currentFloor = p.floor; floorSelect.value = p.floor; updateMapImage(); renderAllPrinters(); } };
+        items.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'ck-row ' + CK_KIND(r.state);
             row.innerHTML =
                 `<span class="ck-dot"></span>` +
                 `<span class="ck-row-main"><b>${r.printer.name}</b>` +
                 `<span>${r.printer.ip} · Andar ${r.printer.floor}${r.printer.selb ? ' · ' + r.printer.selb : ''}</span></span>` +
-                `<span class="ck-badge">${STATE_LABELS[r.state] || r.state}</span>`;
-            row.addEventListener('click', () => {
-                document.getElementById('checkup-modal').classList.add('hidden');
-                const known = printerData.find(x => x.id === r.printer.id) || r.printer;
-                if (known.floor !== currentFloor) { currentFloor = known.floor; floorSelect.value = known.floor; updateMapImage(); renderAllPrinters(); }
-                focusPrinter(known);
-                selectPrinter(known);
-            });
+                `<span class="ck-badge">${STATE_LABELS[r.state] || r.state}</span>` +
+                `<span class="ck-row-actions">` +
+                  `<button class="ck-act ck-map" title="Mostrar no mapa" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></button>` +
+                  `<button class="ck-act ck-open" title="Abrir a impressora" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8.5 8.5M10 5H5v14h14v-5"/></svg></button>` +
+                `</span>`;
+            const known = () => printerData.find(x => x.id === r.printer.id) || r.printer;
+            row.querySelector('.ck-map').addEventListener('click', () => { closeModal(); const p = known(); goFloor(p); focusPrinter(p); });
+            row.querySelector('.ck-open').addEventListener('click', () => { closeModal(); const p = known(); goFloor(p); focusPrinter(p); selectPrinter(p); });
             listEl.appendChild(row);
         });
     }

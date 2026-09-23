@@ -212,17 +212,24 @@ body{
 .ck-bar i{ display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:999px; transition:width .2s ease; }
 .ck-progress > span{ display:block; margin-top:7px; font-size:.72rem; color:var(--muted); text-align:center; }
 .ck-summary{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
-.ck-stat{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 4px; border-radius:12px; border:1px solid var(--card-border); background:var(--card); }
+.ck-stat{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 4px; border-radius:12px; border:1px solid var(--card-border); background:var(--card); cursor:pointer; transition:transform .14s ease, border-color .14s ease, box-shadow .14s ease; }
+.ck-stat:hover{ transform:translateY(-2px); box-shadow:var(--shadow); }
 .ck-stat b{ font-size:1.3rem; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
 .ck-stat span{ font-size:.56rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
-.ck-stat.ok b{ color:var(--green); }
-.ck-stat.att b{ color:var(--amber); }
-.ck-stat.prob b{ color:var(--red); }
-.ck-stat.off b{ color:#64748b; }
+.ck-stat.ok b{ color:var(--green); } .ck-stat.ok.active{ border-color:var(--green); box-shadow:0 0 0 2px rgba(5,150,105,.3); }
+.ck-stat.att b{ color:var(--amber); } .ck-stat.att.active{ border-color:var(--amber); box-shadow:0 0 0 2px rgba(217,119,6,.3); }
+.ck-stat.prob b{ color:var(--red); } .ck-stat.prob.active{ border-color:var(--red); box-shadow:0 0 0 2px rgba(220,38,38,.3); }
+.ck-stat.off b{ color:#64748b; } .ck-stat.off.active{ border-color:#64748b; box-shadow:0 0 0 2px rgba(100,116,139,.3); }
 .ck-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:4px; }
-.ck-row{ display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:12px; text-align:left; cursor:pointer;
-  background:var(--card); border:1px solid var(--card-border); transition:transform .14s ease, border-color .14s ease, box-shadow .14s ease; }
-.ck-row:hover{ transform:translateX(3px); box-shadow:var(--shadow); border-color:var(--accent-border); }
+.ck-row{ display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:12px; text-align:left;
+  background:var(--card); border:1px solid var(--card-border); transition:border-color .14s ease; }
+.ck-row:hover{ border-color:var(--accent-border); }
+.ck-row-actions{ display:flex; gap:6px; flex-shrink:0; }
+.ck-act{ width:32px; height:32px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; color:var(--muted); background:var(--card-strong); border:1px solid var(--card-border); cursor:pointer; transition:all .14s ease; }
+.ck-act svg{ width:16px; height:16px; }
+.ck-act:hover{ color:var(--accent); border-color:var(--accent-border); transform:translateY(-1px); }
+.ck-act.ck-open:hover{ color:#fff; background:var(--accent); border-color:var(--accent); }
+.ck-empty-f{ text-align:center; color:var(--muted); font-size:.82rem; padding:22px; border:1px dashed var(--card-border); border-radius:12px; }
 .ck-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
 .ck-row.off .ck-dot{ background:#64748b; }
 .ck-row.prob .ck-dot{ background:var(--red); animation:ckPulse 1.4s infinite; }
@@ -476,6 +483,8 @@ body.map-full #checkup-modal{ z-index:300; }
   opacity:0; visibility:hidden; transition:opacity .15s, visibility .15s; pointer-events:none;
   z-index:60; transform:translate(-50%,-125%); white-space:nowrap; box-shadow:var(--shadow);
 }
+/* quando o ponto está muito no alto, a dica desce (não corta) */
+#map-tooltip.below{ transform:translate(-50%, 30px); }
 #map-tooltip.show{ opacity:1; visibility:visible; }
 .focus-label{
   position:absolute; transform:translate(-50%,-120%);
@@ -804,6 +813,15 @@ body.map-full #checkup-modal{ z-index:300; }
 @keyframes netPlug{ 0%,18%{ transform:translateY(14px); } 42%,72%{ transform:translateY(0); } 92%,100%{ transform:translateY(14px); } }
 .net-port{ animation:netPort 2.4s ease-in-out infinite; }
 @keyframes netPort{ 0%,40%{ stroke:#64748b; } 50%,72%{ stroke:#34d399; } 82%,100%{ stroke:#64748b; } }
+
+/* link "Ver como resolver" dentro da telinha (LCD) quando há erro */
+.lcd-guide-link{
+  position:relative; z-index:6; margin-top:9px; pointer-events:auto; cursor:pointer;
+  font-family:'Inter',sans-serif; font-size:.64rem; font-weight:700; letter-spacing:.02em; color:#fff;
+  padding:5px 13px; border-radius:999px; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.38);
+  transition:background .15s, transform .12s; animation:guidePulse 1.8s ease-in-out infinite;
+}
+.lcd-guide-link:hover{ background:rgba(255,255,255,.3); transform:translateY(-1px); }
 
 .info-actions{ display:flex; flex-direction:column; gap:9px; }
 .panel-action{ display:flex; align-items:center; gap:11px; text-align:left; font-size:.84rem; font-weight:600; color:var(--txt); background:var(--card); border:1px solid var(--card-border); border-radius:12px; padding:11px 14px; transition:all .16s; }

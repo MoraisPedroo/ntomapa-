@@ -202,11 +202,12 @@ function lcdFooter(chip) {
         </span>
     </div>`;
 }
-function lcdBody(iconHTML, title, sub) {
+function lcdBody(iconHTML, title, sub, extra = '') {
     return `<div class="lcd-body">
         ${iconHTML ? `<div class="lcd-icon">${iconHTML}</div>` : ''}
         <div class="lcd-title">${title}</div>
         ${sub ? `<div class="lcd-sub">${sub}</div>` : ''}
+        ${extra}
     </div>`;
 }
 function setLed(id, color, blink = false) {
@@ -272,7 +273,8 @@ function renderState(state, detail) {
     const bodyIcon = state === 'CONNECTING' ? '<div class="lcd-spinner"></div>'
                    : state === 'HEAD_OPEN'  ? LCD_HEADOPEN
                    : (ICON[meta.icon] || '');
-    lcd.innerHTML = lcdStatusbar(flags) + lcdBody(bodyIcon, meta.title, sub) + lcdFooter(meta.chip);
+    const guideLink = GUIDES[state] ? `<button class="lcd-guide-link" type="button">Ver como resolver ›</button>` : '';
+    lcd.innerHTML = lcdStatusbar(flags) + lcdBody(bodyIcon, meta.title, sub, guideLink) + lcdFooter(meta.chip);
 
     applyLeds(state);
     applyConn(meta.conn, { ok:'Online via túnel corporativo', down: detail || 'Sem resposta da impressora', wait:'Consultando status…' }[meta.conn]);
@@ -280,6 +282,9 @@ function renderState(state, detail) {
 
     const pauseKey = $('key-pause');
     if (pauseKey) pauseKey.textContent = state === 'PAUSED' ? 'RESUME' : 'PAUSE';
+
+    // avisa o mapa do status atual (repinta o ponto), exceto nos estados de transição
+    if (current && handlers.onStatus && !['CONNECTING', 'BOOT'].includes(state)) handlers.onStatus(current.id, state, detail);
 
     requestAnimationFrame(fitVisor);   // reajusta p/ caber numa tela só
 }
@@ -612,6 +617,7 @@ function init() {
     const guideModal = $('guide-modal');
     const closeGuide = () => guideModal.classList.add('hidden');
     $('guide-open').addEventListener('click', () => guideModal.classList.remove('hidden'));
+    $('zt-lcd').addEventListener('click', (e) => { if (e.target.closest('.lcd-guide-link')) guideModal.classList.remove('hidden'); });
     $('guide-modal-close').addEventListener('click', closeGuide);
     guideModal.addEventListener('click', (e) => { if (e.target === guideModal) closeGuide(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !guideModal.classList.contains('hidden')) closeGuide(); });
