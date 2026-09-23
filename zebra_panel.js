@@ -26,6 +26,17 @@ let session = 0;
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+/* Faz o visor caber numa tela só: reduz proporcionalmente se passar da altura. */
+function fitVisor() {
+    const shell = document.querySelector('#zebra-modal .zebra-shell');
+    if (!shell) return;
+    shell.style.transform = 'none';
+    const avail = window.innerHeight * 0.96;
+    const natural = shell.offsetHeight;
+    const scale = natural > avail ? avail / natural : 1;
+    shell.style.transform = scale < 1 ? `scale(${scale})` : 'none';
+}
+
 /* ------------------------------------------------------------------
    Ícones
 ------------------------------------------------------------------ */
@@ -239,6 +250,8 @@ function renderState(state, detail) {
 
     const pauseKey = $('key-pause');
     if (pauseKey) pauseKey.textContent = state === 'PAUSED' ? 'RESUME' : 'PAUSE';
+
+    requestAnimationFrame(fitVisor);   // reajusta p/ caber numa tela só
 }
 
 function renderBootScreen() {
@@ -492,6 +505,7 @@ export function openZebraPanel(printer, apiGetter, opts = {}) {
     $('adv-reply').textContent = '';
     $('adv-cmd').value = '';
     $('zebra-modal').classList.remove('hidden');
+    requestAnimationFrame(fitVisor);
 
     // reseta o contador
     counterPath = '';
@@ -529,6 +543,12 @@ function init() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeZebraPanel();
     });
+    window.addEventListener('resize', () => { if (!modal.classList.contains('hidden')) fitVisor(); });
+    // reajusta sempre que o conteúdo mudar de tamanho (carrega contador, guia, etc.)
+    const shellEl = document.querySelector('#zebra-modal .zebra-shell');
+    if (window.ResizeObserver && shellEl) {
+        new ResizeObserver(() => { if (!modal.classList.contains('hidden')) fitVisor(); }).observe(shellEl);
+    }
 
     $('key-pause').addEventListener('click', () => {
         const paused = lastState === 'PAUSED';

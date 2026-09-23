@@ -171,6 +171,7 @@ body{
 .ico-green{ color:#059669; background:rgba(5,150,105,.14); }
 .ico-indigo{ color:#4f46e5; background:rgba(79,70,229,.15); }
 .ico-amber{ color:#d97706; background:rgba(217,119,6,.15); }
+.ico-rose{ color:#e11d48; background:rgba(225,29,72,.15); }
 
 /* mini-modal (IP externo / Link do túnel) */
 .tool-modal-card{
@@ -194,6 +195,48 @@ body{
 }
 .tools-primary:hover{ filter:brightness(1.07); transform:translateY(-1px); }
 .tools-primary:active{ transform:translateY(0) scale(.99); }
+
+/* ============================================================
+   CHECK-UP DA REDE
+   ============================================================ */
+.checkup-card{
+  position:relative; width:min(440px, 94vw); max-height:90dvh; overflow-y:auto;
+  background:var(--panel-solid); border:1px solid var(--card-border); border-radius:20px;
+  box-shadow:var(--shadow-lg); padding:22px; animation:shellIn .26s cubic-bezier(.2,.9,.3,1.1);
+}
+.ck-head{ display:flex; align-items:flex-start; gap:12px; margin-bottom:16px; }
+.ck-head h3{ margin:0; font-size:1.05rem; font-weight:700; }
+.ck-head p{ margin:3px 0 0; font-size:.74rem; color:var(--muted); line-height:1.35; }
+.ck-progress{ margin-bottom:14px; }
+.ck-bar{ height:8px; border-radius:999px; background:var(--card-strong); border:1px solid var(--card-border); overflow:hidden; }
+.ck-bar i{ display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:999px; transition:width .2s ease; }
+.ck-progress > span{ display:block; margin-top:7px; font-size:.72rem; color:var(--muted); text-align:center; }
+.ck-summary{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+.ck-stat{ display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 4px; border-radius:12px; border:1px solid var(--card-border); background:var(--card); }
+.ck-stat b{ font-size:1.3rem; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
+.ck-stat span{ font-size:.56rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.ck-stat.ok b{ color:var(--green); }
+.ck-stat.att b{ color:var(--amber); }
+.ck-stat.prob b{ color:var(--red); }
+.ck-stat.off b{ color:#64748b; }
+.ck-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:4px; }
+.ck-row{ display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:12px; text-align:left; cursor:pointer;
+  background:var(--card); border:1px solid var(--card-border); transition:transform .14s ease, border-color .14s ease, box-shadow .14s ease; }
+.ck-row:hover{ transform:translateX(3px); box-shadow:var(--shadow); border-color:var(--accent-border); }
+.ck-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.ck-row.off .ck-dot{ background:#64748b; }
+.ck-row.prob .ck-dot{ background:var(--red); animation:ckPulse 1.4s infinite; }
+.ck-row.att .ck-dot{ background:var(--amber); }
+@keyframes ckPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(220,38,38,.5); } 50%{ box-shadow:0 0 0 5px rgba(220,38,38,0); } }
+.ck-row-main{ display:flex; flex-direction:column; gap:1px; min-width:0; flex:1; }
+.ck-row-main b{ font-size:.86rem; font-weight:700; color:var(--txt); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ck-row-main span{ font-size:.68rem; color:var(--muted); font-family:'JetBrains Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ck-badge{ flex-shrink:0; font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:4px 9px; border-radius:999px; }
+.ck-row.off .ck-badge{ color:#475569; background:rgba(100,116,139,.16); }
+.ck-row.prob .ck-badge{ color:var(--red); background:rgba(220,38,38,.12); }
+.ck-row.att .ck-badge{ color:var(--amber); background:rgba(217,119,6,.12); }
+.ck-allok{ display:flex; flex-direction:column; align-items:center; gap:8px; padding:26px 10px; color:var(--green); font-weight:600; font-size:.9rem; text-align:center; }
+.ck-allok svg{ width:42px; height:42px; }
 
 /* ============================================================
    BARRA DE FERRAMENTAS AO LADO DO MAPA
@@ -230,12 +273,19 @@ body.map-full #map-container{
   height:auto !important; max-width:none; margin:0; border-radius:0;
 }
 body.map-full #map-toolbar{
-  position:fixed; top:calc(12px + env(safe-area-inset-top)); right:12px;
-  left:auto; bottom:auto; width:auto; flex-direction:row; gap:0;
+  position:fixed; top:calc(12px + env(safe-area-inset-top)); left:12px; right:12px;
+  bottom:auto; width:auto; flex-direction:row; align-items:flex-start; justify-content:space-between; gap:10px;
   background:transparent; border:none; box-shadow:none; padding:0; z-index:160;
 }
-body.map-full #map-toolbar > *:not(#fullscreen-btn){ display:none; }
+/* na tela cheia mostra só a lupa (esquerda) e o botão sair (direita) */
+body.map-full #map-toolbar > *:not(#fullscreen-btn):not(#search-container){ display:none; }
 body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid var(--card-border); box-shadow:var(--shadow-lg); color:var(--accent); }
+body.map-full #search-container{ align-self:flex-start; background:var(--panel-solid); border:1px solid var(--card-border); box-shadow:var(--shadow-lg); }
+/* clicar numa impressora abre o visor POR CIMA do mapa em tela cheia */
+body.map-full #zebra-modal,
+body.map-full #iptools-modal,
+body.map-full #tool-modal,
+body.map-full #checkup-modal{ z-index:300; }
 /* descrição no hover (à direita, sobre o mapa) */
 .mtb-btn::after{
   content:attr(data-tip); position:absolute; left:calc(100% + 10px); top:50%;
@@ -354,6 +404,10 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
   background:transparent; color:var(--txt); height:38px; font-size:.86rem; min-width:0;
 }
 #search-input::placeholder{ color:var(--faint); }
+/* no tema escuro o campo de busca sumia (fundo/borda quase invisíveis) */
+:root[data-theme="dark"] #search-container{ background:rgba(148,163,184,.2); border-color:rgba(148,163,184,.34); }
+:root[data-theme="dark"] #search-container button{ color:#cbd5e1; }
+:root[data-theme="dark"] #search-input::placeholder{ color:#94a3b8; }
 #search-container.expanded #search-input{ width:min(240px,52vw); padding-left:1rem; padding-right:.3rem; }
 .icon-hitbox{ display:inline-flex; align-items:center; justify-content:center; padding:4px; border-radius:9999px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 #search-results{
@@ -439,10 +493,11 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
    GÊMEO DIGITAL — SHELL
    ============================================================ */
 .zebra-shell{
-  position:relative; width:min(980px, 96vw); max-height:94vh; overflow-y:auto;
+  position:relative; width:min(980px, 96vw); overflow:visible;
   display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:0;
   background:var(--panel-solid); border:1px solid var(--card-border); border-radius:26px;
   box-shadow:var(--shadow-lg); animation: shellIn .28s cubic-bezier(.2,.9,.3,1.1);
+  transform-origin:center center;  /* usado pelo ajuste "cabe numa tela só" */
 }
 :root[data-theme="dark"] .zebra-shell{ background:linear-gradient(180deg, rgba(17,26,40,.97), rgba(9,14,23,.98)); }
 @keyframes shellIn{ from{ opacity:0; transform:translateY(18px) scale(.97);} to{ opacity:1; transform:none;} }
@@ -458,7 +513,7 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
    CHASSI ZEBRA — metal escovado (mesmo em ambos os temas)
    ============================================================ */
 .zt-chassis{
-  position:relative; margin:22px; padding:18px 20px 24px; border-radius:20px;
+  position:relative; margin:14px; padding:12px 16px 14px; border-radius:18px;
   background:
     repeating-linear-gradient(115deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px),
     repeating-linear-gradient(295deg, rgba(0,0,0,.07) 0 2px, transparent 2px 5px),
@@ -470,7 +525,7 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
 .screw::after{ content:''; position:absolute; left:1.5px; right:1.5px; top:4.5px; height:1.6px; background:rgba(0,0,0,.75); border-radius:2px; transform:rotate(-38deg); }
 .screw.s1{ top:10px; left:10px; } .screw.s2{ top:10px; right:10px; } .screw.s3{ bottom:10px; left:10px; } .screw.s4{ bottom:10px; right:10px; }
 
-.zt-topbar{ display:flex; align-items:center; justify-content:space-between; padding:2px 6px 14px; }
+.zt-topbar{ display:flex; align-items:center; justify-content:space-between; padding:0 6px 9px; }
 .zt-logo{ font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:1.05rem; letter-spacing:.42em; color:#f8fafc; padding-left:.42em; text-shadow:0 1px 0 rgba(0,0,0,.9), 0 -1px 0 rgba(255,255,255,.15); }
 .zt-model{ font-family:'Chakra Petch',sans-serif; font-size:.6rem; letter-spacing:.18em; color:#9aa3af; border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:4px 10px; background:rgba(0,0,0,.3); }
 
@@ -478,7 +533,7 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
 
 /* --- Tela / bezel --- */
 .zt-screen-bezel{ background:linear-gradient(180deg,#0b0d10,#050608); border-radius:16px; padding:12px; box-shadow:inset 0 2px 10px #000, 0 1px 0 rgba(255,255,255,.07); }
-.zt-lcd{ position:relative; border-radius:9px; overflow:hidden; aspect-ratio:16/10; display:flex; flex-direction:column; background:linear-gradient(160deg,#101c26,#16303c); transition:background .4s; font-family:'Chakra Petch',sans-serif; }
+.zt-lcd{ position:relative; border-radius:9px; overflow:hidden; aspect-ratio:16/10; max-height:210px; display:flex; flex-direction:column; background:linear-gradient(160deg,#101c26,#16303c); transition:background .4s; font-family:'Chakra Petch',sans-serif; }
 .zt-lcd::before{ content:''; position:absolute; inset:0; pointer-events:none; z-index:3; background:repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px 3px); }
 .zt-lcd::after{ content:''; position:absolute; inset:0; pointer-events:none; z-index:4; background:linear-gradient(115deg, rgba(255,255,255,.09), transparent 32%); }
 
@@ -544,7 +599,7 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
 @keyframes led-blink{ 0%,44%{ opacity:1; } 50%,94%{ opacity:.12; box-shadow:none; } 100%{ opacity:1; } }
 
 /* --- Teclas físicas --- */
-.zt-keys{ margin-top:20px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) auto; gap:14px; align-items:center; }
+.zt-keys{ margin-top:12px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) auto; gap:12px; align-items:center; }
 .zt-key{
   font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:.74rem; letter-spacing:.16em;
   color:#d3d9e2; padding:15px 0; border-radius:12px; user-select:none;
@@ -582,7 +637,7 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
 /* ============================================================
    COLUNA DE INFORMAÇÕES
    ============================================================ */
-.zebra-info{ padding:26px 24px; border-left:1px solid var(--card-border); display:flex; flex-direction:column; gap:15px; }
+.zebra-info{ padding:16px 18px; border-left:1px solid var(--card-border); display:flex; flex-direction:column; gap:11px; }
 @media (max-width:920px){ .zebra-info{ border-left:none; border-top:1px solid var(--card-border); } }
 .info-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .info-head-actions{ display:flex; gap:6px; }
@@ -591,8 +646,8 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
 .mini-btn:hover{ color:var(--accent); border-color:var(--accent-border); }
 .mini-btn.danger:hover{ color:#fff; background:var(--red); border-color:var(--red); }
 .dept-chip{ font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.14em; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-border); padding:4px 11px; border-radius:999px; }
-.zebra-info h2{ font-size:1.4rem; font-weight:800; letter-spacing:-.01em; margin-top:-4px; word-break:break-word; }
-.info-list{ display:flex; flex-direction:column; gap:11px; }
+.zebra-info h2{ font-size:1.2rem; font-weight:800; letter-spacing:-.01em; margin-top:-4px; word-break:break-word; }
+.info-list{ display:flex; flex-direction:column; gap:7px; }
 .info-list dt{ font-size:.64rem; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); margin-bottom:3px; }
 .info-list dd{ font-size:.85rem; background:var(--card); border:1px solid var(--card-border); border-radius:9px; padding:7px 11px; word-break:break-word; }
 .conn-line{ display:flex; align-items:center; gap:9px; font-size:.8rem; color:var(--muted); background:var(--card); border:1px solid var(--card-border); border-radius:10px; padding:9px 13px; }
@@ -603,7 +658,7 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
 
 /* Contador de impressão — visor digital (dark em qualquer tema) */
 .counter-display{
-  position:relative; overflow:hidden; border-radius:16px; padding:14px 16px;
+  position:relative; overflow:hidden; border-radius:16px; padding:11px 14px;
   font-family:'Chakra Petch', sans-serif; color:#67e8f9;
   background:
     radial-gradient(120% 80% at 50% -20%, rgba(34,211,238,.14), transparent 60%),
@@ -620,9 +675,9 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
 .counter-off .cd-live{ color:#5b7480; text-shadow:none; animation:none; }
 @keyframes cdBlink{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
 
-.cd-value-row{ display:flex; align-items:baseline; gap:10px; margin:8px 0 4px; }
+.cd-value-row{ display:flex; align-items:baseline; gap:10px; margin:5px 0 3px; }
 .cd-value{
-  font-size:2.9rem; font-weight:700; line-height:.9; letter-spacing:.02em;
+  font-size:2.4rem; font-weight:700; line-height:.9; letter-spacing:.02em;
   color:#a5f3fc; font-variant-numeric:tabular-nums;
   text-shadow:0 0 12px rgba(34,211,238,.55), 0 0 3px rgba(165,243,252,.9);
 }
@@ -630,14 +685,14 @@ body.map-full #fullscreen-btn{ background:var(--panel-solid); border:1px solid v
 .cd-unit{ font-family:'Inter',sans-serif; font-size:.66rem; line-height:1.15; color:#5b9aa6; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
 
 /* etiquetas impressas desde a última reinicialização (Total Jobs Printed) */
-.cd-since{ display:flex; align-items:baseline; gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed rgba(103,232,249,.14); flex-wrap:wrap; }
+.cd-since{ display:flex; align-items:baseline; gap:8px; margin-top:6px; padding-top:6px; border-top:1px dashed rgba(103,232,249,.14); flex-wrap:wrap; }
 .cd-since-label{ flex-basis:100%; font-family:'Inter',sans-serif; font-size:.56rem; letter-spacing:.1em; text-transform:uppercase; color:#4b7079; }
 .cd-since-val{ font-size:1.55rem; font-weight:700; line-height:1; color:#fde68a; font-variant-numeric:tabular-nums; text-shadow:0 0 10px rgba(251,191,36,.45); }
 .counter-off .cd-since-val{ color:#3f5a63; text-shadow:none; }
 .cd-since-unit{ font-family:'Inter',sans-serif; font-size:.6rem; text-transform:uppercase; letter-spacing:.06em; color:#5b9aa6; font-weight:600; }
 .cd-since.bump .cd-since-val{ animation:cdBump .5s cubic-bezier(.2,.9,.3,1.3); }
 
-.cd-meta{ display:flex; gap:18px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(103,232,249,.12); flex-wrap:wrap; }
+.cd-meta{ display:flex; gap:18px; margin-top:7px; padding-top:7px; border-top:1px solid rgba(103,232,249,.12); flex-wrap:wrap; }
 .cd-meta > div{ display:flex; flex-direction:column; gap:2px; }
 .cd-meta span{ font-size:.54rem; letter-spacing:.14em; color:#4b7079; }
 .cd-meta b{ font-size:.8rem; font-weight:600; color:#a5f3fc; font-variant-numeric:tabular-nums; }

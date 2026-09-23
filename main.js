@@ -320,6 +320,110 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    /* -------------------- Check-up da rede -------------------- */
+    let checkupRunning = false;
+    (function initCheckupModal() {
+        const modal = document.getElementById('checkup-modal');
+        if (!modal) return;
+        const close = () => modal.classList.add('hidden');
+        document.getElementById('checkup-close').addEventListener('click', close);
+        modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.classList.contains('hidden')) close(); });
+        document.getElementById('ck-rerun').addEventListener('click', runCheckup);
+    })();
+
+    function openCheckup() {
+        document.getElementById('checkup-modal').classList.remove('hidden');
+        runCheckup();
+    }
+
+    const CK_SEV = { OFFLINE: 0, ERROR: 1, HEAD_OPEN: 1, RIBBON_OUT: 1, MEDIA_OUT: 1, UNKNOWN: 2, PAUSED: 2, READY: 3, ONLINE: 3, CONNECTING: 2 };
+
+    async function runCheckup() {
+        if (checkupRunning) return;
+        checkupRunning = true;
+        const list = getPrinters().slice();
+        const total = list.length;
+        const progress = document.getElementById('ck-progress');
+        const barFill = document.getElementById('ck-bar-fill');
+        const ptext = document.getElementById('ck-progress-text');
+        const summary = document.getElementById('ck-summary');
+        const listEl = document.getElementById('ck-list');
+        const rerun = document.getElementById('ck-rerun');
+
+        progress.hidden = false; summary.hidden = true; rerun.hidden = true;
+        listEl.innerHTML = '';
+        barFill.style.width = '0%';
+        ptext.textContent = total ? `Verificando 0/${total}…` : 'Nenhuma impressora cadastrada.';
+        if (!total) { checkupRunning = false; progress.hidden = true; return; }
+
+        const results = [];
+        let done = 0, idx = 0;
+        const CONCURRENCY = 8;
+        const worker = async () => {
+            while (idx < list.length) {
+                const p = list[idx++];
+                let res;
+                try { res = await fetchPrinterStatus(p.ip, API_BASE_URL); }
+                catch (_) { res = { state: 'OFFLINE', detail: 'Falha' }; }
+                results.push({ printer: p, state: res.state, detail: res.detail });
+                done++;
+                barFill.style.width = Math.round(done / total * 100) + '%';
+                ptext.textContent = `Verificando ${done}/${total}…`;
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
+        checkupRunning = false;
+        renderCheckup(results);
+    }
+
+    function renderCheckup(results) {
+        const progress = document.getElementById('ck-progress');
+        const summary = document.getElementById('ck-summary');
+        const listEl = document.getElementById('ck-list');
+        const rerun = document.getElementById('ck-rerun');
+        progress.hidden = true; rerun.hidden = false;
+
+        const sev = (s) => (CK_SEV[s] ?? 2);
+        const bad = results.filter(r => sev(r.state) <= 2).sort((a, b) => sev(a.state) - sev(b.state) || a.printer.name.localeCompare(b.printer.name));
+        const off = results.filter(r => r.state === 'OFFLINE').length;
+        const prob = results.filter(r => ['ERROR', 'HEAD_OPEN', 'RIBBON_OUT', 'MEDIA_OUT'].includes(r.state)).length;
+        const att = results.filter(r => ['PAUSED', 'UNKNOWN', 'CONNECTING'].includes(r.state)).length;
+        const ok = results.length - off - prob - att;
+
+        summary.hidden = false;
+        summary.innerHTML =
+            `<div class="ck-stat ok"><b>${ok}</b><span>OK</span></div>` +
+            `<div class="ck-stat att"><b>${att}</b><span>atenção</span></div>` +
+            `<div class="ck-stat prob"><b>${prob}</b><span>problema</span></div>` +
+            `<div class="ck-stat off"><b>${off}</b><span>offline</span></div>`;
+
+        if (!bad.length) {
+            listEl.innerHTML = `<div class="ck-allok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5-5.5"/></svg> Todas as impressoras estão OK!</div>`;
+            return;
+        }
+        listEl.innerHTML = '';
+        bad.forEach(r => {
+            const kind = r.state === 'OFFLINE' ? 'off' : (['PAUSED', 'UNKNOWN', 'CONNECTING'].includes(r.state) ? 'att' : 'prob');
+            const row = document.createElement('button');
+            row.className = 'ck-row ' + kind;
+            row.type = 'button';
+            row.innerHTML =
+                `<span class="ck-dot"></span>` +
+                `<span class="ck-row-main"><b>${r.printer.name}</b>` +
+                `<span>${r.printer.ip} · Andar ${r.printer.floor}${r.printer.selb ? ' · ' + r.printer.selb : ''}</span></span>` +
+                `<span class="ck-badge">${STATE_LABELS[r.state] || r.state}</span>`;
+            row.addEventListener('click', () => {
+                document.getElementById('checkup-modal').classList.add('hidden');
+                const known = printerData.find(x => x.id === r.printer.id) || r.printer;
+                if (known.floor !== currentFloor) { currentFloor = known.floor; floorSelect.value = known.floor; updateMapImage(); renderAllPrinters(); }
+                focusPrinter(known);
+                selectPrinter(known);
+            });
+            listEl.appendChild(row);
+        });
+    }
+
     function setupToolsMenu() {
         const menu = document.getElementById('tools-menu');   // .tools-fab
         const btn = document.getElementById('tools-btn');     // botão-maleta
@@ -376,6 +480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     case 'fixip':     openIpToolsModal('', 'config'); break;
                     case 'extip':     openToolModal('extip'); break;
                     case 'apilink':   openToolModal('apilink'); break;
+                    case 'checkup':   openCheckup(); break;
                 }
             });
         });

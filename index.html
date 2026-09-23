@@ -98,7 +98,11 @@
               <span class="fab-tip">Fixar IP · configurar IP estático</span>
               <span class="fab-ico ico-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></span>
             </button>
-            <button class="fab-item" data-tool="apilink" style="--i:4" type="button">
+            <button class="fab-item" data-tool="checkup" style="--i:4" type="button">
+              <span class="fab-tip">Check-up · status de todas as impressoras</span>
+              <span class="fab-ico ico-rose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg></span>
+            </button>
+            <button class="fab-item" data-tool="apilink" style="--i:5" type="button">
               <span class="fab-tip">Link do túnel · ver/alterar Cloudflare</span>
               <span class="fab-ico ico-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 14.5l5-5M8 12l-2 2a3 3 0 104.2 4.2l2-2M16 12l2-2a3 3 0 10-4.2-4.2l-2 2"/></svg></span>
             </button>
@@ -429,6 +433,24 @@
         <input id="new-api-url" class="side-input mono" placeholder="https://...trycloudflare.com/proxy.php" autocomplete="off">
         <button id="btn-save-api-url" class="tools-primary" type="button">Salvar link</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===================== CHECK-UP DA REDE ===================== -->
+  <div id="checkup-modal" class="modal-backdrop hidden">
+    <div class="checkup-card">
+      <button id="checkup-close" class="zebra-close" title="Fechar">✕</button>
+      <div class="ck-head">
+        <span class="tc-ico ico-rose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg></span>
+        <div><h3>Check-up da rede</h3><p>Status de todas as impressoras cadastradas.</p></div>
+      </div>
+      <div id="ck-progress" class="ck-progress">
+        <div class="ck-bar"><i id="ck-bar-fill"></i></div>
+        <span id="ck-progress-text">Preparando…</span>
+      </div>
+      <div id="ck-summary" class="ck-summary" hidden></div>
+      <div id="ck-list" class="ck-list"></div>
+      <button id="ck-rerun" class="tools-primary" type="button" hidden>Verificar novamente</button>
     </div>
   </div>
 
