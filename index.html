@@ -176,10 +176,8 @@
         </div>
         <h2 id="zp-name">—</h2>
         <dl class="info-list">
-          <div class="il-row">
-            <div><dt>SELB</dt><dd id="zp-selb" class="mono">—</dd></div>
-            <div><dt>Endereço IP</dt><dd id="zp-ip" class="mono">—</dd></div>
-          </div>
+          <div><dt>SELB</dt><dd id="zp-selb" class="mono">—</dd></div>
+          <div><dt>Endereço IP</dt><dd id="zp-ip" class="mono">—</dd></div>
           <div><dt>Observações</dt><dd id="zp-observations">—</dd></div>
         </dl>
         <div class="conn-line">
@@ -224,31 +222,11 @@
           </div>
         </div>
 
-        <!-- Ações avançadas -->
-        <div class="adv-section">
-          <button id="adv-toggle" class="adv-toggle">
-            <span>Ações avançadas &amp; comandos</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <div id="adv-body" class="adv-body">
-            <div class="adv-grid">
-              <button id="adv-zt421" class="side-btn indigo">Config ZT421</button>
-              <button id="adv-factory" class="side-btn orange">Restaurar Fábrica</button>
-            </div>
-            <label class="section-label">Enviar comando ZPL</label>
-            <textarea id="adv-cmd" class="side-input mono w-full" rows="3" placeholder="~HS  •  ^XA...^XZ  •  ! U1 getvar &quot;device.product_name&quot;"></textarea>
-            <div class="adv-cmd-row">
-              <div class="quick-cmds">
-                <button class="chip-cmd" data-cmd="~HS">~HS</button>
-                <button class="chip-cmd" data-cmd="~JC">~JC</button>
-                <button class="chip-cmd" data-cmd="~PP">~PP</button>
-                <button class="chip-cmd" data-cmd="~PS">~PS</button>
-              </div>
-              <button id="adv-send" class="side-btn terminal mono">Enviar &gt;_</button>
-            </div>
-            <div id="adv-reply" class="adv-reply hidden"></div>
-          </div>
-        </div>
+        <!-- Ações avançadas: abre num modal -->
+        <button id="adv-open" class="panel-action adv-open-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg>
+          Ações avançadas &amp; comandos
+        </button>
       </aside>
 
       <!-- Contador de impressão — barra horizontal, largura total -->
@@ -460,6 +438,33 @@
       <div id="ck-summary" class="ck-summary" hidden></div>
       <div id="ck-list" class="ck-list"></div>
       <button id="ck-rerun" class="tools-primary" type="button" hidden>Verificar novamente</button>
+    </div>
+  </div>
+
+  <!-- ===================== AÇÕES AVANÇADAS (MODAL) ===================== -->
+  <div id="adv-modal" class="modal-backdrop hidden">
+    <div class="adv-modal-card">
+      <button id="adv-modal-close" class="zebra-close" title="Fechar">✕</button>
+      <div class="tm-head">
+        <span class="tc-ico ico-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg></span>
+        <div><h3>Ações avançadas &amp; comandos</h3><p>Configurações especiais e envio de ZPL bruto.</p></div>
+      </div>
+      <div class="adv-grid">
+        <button id="adv-zt421" class="side-btn indigo">Config ZT421</button>
+        <button id="adv-factory" class="side-btn orange">Restaurar Fábrica</button>
+      </div>
+      <label class="section-label">Enviar comando ZPL</label>
+      <textarea id="adv-cmd" class="side-input mono w-full" rows="3" placeholder="~HS  •  ^XA...^XZ  •  ! U1 getvar &quot;device.product_name&quot;"></textarea>
+      <div class="adv-cmd-row">
+        <div class="quick-cmds">
+          <button class="chip-cmd" data-cmd="~HS">~HS</button>
+          <button class="chip-cmd" data-cmd="~JC">~JC</button>
+          <button class="chip-cmd" data-cmd="~PP">~PP</button>
+          <button class="chip-cmd" data-cmd="~PS">~PS</button>
+        </div>
+        <button id="adv-send" class="side-btn terminal mono">Enviar &gt;_</button>
+      </div>
+      <div id="adv-reply" class="adv-reply hidden"></div>
     </div>
   </div>
 

@@ -586,8 +586,14 @@ function init() {
         $('guide-toggle').textContent = g.classList.contains('open') ? 'ocultar ▴' : 'ver ▾';
     });
 
-    // ações avançadas
-    $('adv-toggle').addEventListener('click', () => $('adv-toggle').parentElement.classList.toggle('open'));
+    // ações avançadas — abrem num modal próprio
+    const advModal = $('adv-modal');
+    const openAdv = () => { advModal.classList.remove('hidden'); };
+    const closeAdv = () => { advModal.classList.add('hidden'); };
+    $('adv-open').addEventListener('click', openAdv);
+    $('adv-modal-close').addEventListener('click', closeAdv);
+    advModal.addEventListener('click', (e) => { if (e.target === advModal) closeAdv(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !advModal.classList.contains('hidden')) closeAdv(); });
     $('adv-zt421').addEventListener('click', () => {
         if (confirm('Enviar configuração ZT421 para a impressora? (imprime uma etiqueta de teste)'))
             keyAction(ZT421_CONFIG, 'Config ZT421', 4000);
