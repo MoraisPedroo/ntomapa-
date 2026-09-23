@@ -11,6 +11,7 @@ let API_BASE_URL = "https://replacement-way-milk-auction.trycloudflare.com/proxy
 let currentPrinterIp = '';
 let currentPrinter = null;
 let printerData = [];
+let printerStatus = {};   // id -> { state, detail } do último check-up (pinta o mapa)
 let currentFloor = 1;
 let transientLabel = null;
 let focusResetTimer = null;
@@ -97,6 +98,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         point.style.top = printer.pos.top;
         point.style.left = printer.pos.left;
         point.dataset.printerId = printer.id;
+        const st0 = printerStatus[printer.id];
+        if (st0) point.classList.add(pointStatusClass(st0.state));
         point.innerHTML = `<svg class="printer-point-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>`;
 
         point.addEventListener('click', (e) => {
@@ -107,7 +110,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         point.addEventListener('mouseenter', (e) => {
             if (placing) return;
-            tooltip.innerHTML = `<strong>${printer.name}</strong><br>SELB: ${printer.selb} (Andar ${printer.floor})`;
+            const st = printerStatus[printer.id];
+            const stLine = st ? `<br><span class="tt-status ${pointStatusClass(st.state)}">● ${STATE_LABELS[st.state] || st.state}</span>` : '';
+            tooltip.innerHTML = `<strong>${printer.name}</strong><br>SELB: ${printer.selb} (Andar ${printer.floor})${stLine}`;
             const pRect = e.currentTarget.getBoundingClientRect();
             const cRect = mapContainer.getBoundingClientRect();
             tooltip.style.top = `${pRect.top - cRect.top}px`;
@@ -322,6 +327,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /* -------------------- Check-up da rede -------------------- */
     let checkupRunning = false;
+    let lastCheckup = null;   // resultado em cache (some ao recarregar a página)
     (function initCheckupModal() {
         const modal = document.getElementById('checkup-modal');
         if (!modal) return;
@@ -334,7 +340,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function openCheckup() {
         document.getElementById('checkup-modal').classList.remove('hidden');
-        runCheckup();
+        if (lastCheckup) renderCheckup(lastCheckup);  // usa o resultado salvo; "Verificar novamente" refaz
+        else runCheckup();
+    }
+
+    // cor do ponto no mapa conforme o status
+    function pointStatusClass(state) {
+        if (['READY', 'ONLINE'].includes(state)) return 'ps-ok';
+        if (state === 'OFFLINE') return 'ps-off';
+        if (['PAUSED', 'UNKNOWN', 'CONNECTING'].includes(state)) return 'ps-att';
+        return 'ps-prob';
+    }
+    function applyPointStatus(id) {
+        const pt = document.querySelector(`.printer-point[data-printer-id="${id}"]`);
+        if (!pt) return;
+        pt.classList.remove('ps-ok', 'ps-off', 'ps-att', 'ps-prob');
+        const st = printerStatus[id];
+        if (st) pt.classList.add(pointStatusClass(st.state));
     }
 
     const CK_SEV = { OFFLINE: 0, ERROR: 1, HEAD_OPEN: 1, RIBBON_OUT: 1, MEDIA_OUT: 1, UNKNOWN: 2, PAUSED: 2, READY: 3, ONLINE: 3, CONNECTING: 2 };
@@ -367,6 +389,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 try { res = await fetchPrinterStatus(p.ip, API_BASE_URL); }
                 catch (_) { res = { state: 'OFFLINE', detail: 'Falha' }; }
                 results.push({ printer: p, state: res.state, detail: res.detail });
+                printerStatus[p.id] = { state: res.state, detail: res.detail };  // pinta o ponto no mapa
+                applyPointStatus(p.id);
                 done++;
                 barFill.style.width = Math.round(done / total * 100) + '%';
                 ptext.textContent = `Verificando ${done}/${total}…`;
@@ -374,6 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
         checkupRunning = false;
+        lastCheckup = results;
         renderCheckup(results);
     }
 

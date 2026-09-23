@@ -127,6 +127,33 @@ const GUIDES = {
             'Feche, toque em “Calibrar” (~JC) e depois FEED para testar.',
         ],
     },
+    OFFLINE: {
+        title: 'Sem conexão — confira o cabo de rede',
+        anim: `<svg class="guide-svg" viewBox="0 0 240 120" fill="none">
+            <!-- traseira da impressora -->
+            <rect x="46" y="12" width="150" height="72" rx="11" fill="#3f434b" stroke="#22262d" stroke-width="2"/>
+            <rect x="46" y="12" width="150" height="18" rx="11" fill="#4b5058"/>
+            <path d="M60 30 h122" stroke="#2b2f36" stroke-width="1.5"/>
+            <!-- portas: USB, rede (RJ45), força -->
+            <rect x="74" y="66" width="16" height="13" rx="2" fill="#1f2937" stroke="#0f172a" stroke-width="1.5"/>
+            <rect x="112" y="64" width="22" height="17" rx="2" fill="#141a22" stroke="#34d399" stroke-width="2.4" class="net-port"/>
+            <circle cx="166" cy="73" r="9" fill="#1f2937" stroke="#0f172a" stroke-width="1.5"/>
+            <circle cx="166" cy="73" r="3" fill="#0b0f14"/>
+            <text x="123" y="98" font-size="8" fill="#94a3b8" text-anchor="middle" font-family="sans-serif">REDE</text>
+            <!-- conector de rede subindo até encaixar -->
+            <g class="net-plug">
+              <rect x="110" y="96" width="26" height="15" rx="2" fill="#eab308" stroke="#a16207" stroke-width="1.5"/>
+              <rect x="120" y="92" width="6" height="6" rx="1" fill="#a16207"/>
+              <path d="M123 111 V122" stroke="#a16207" stroke-width="3" stroke-linecap="round"/>
+            </g>
+        </svg>`,
+        steps: [
+            'Confira se o cabo de rede está firme na porta ethernet da impressora (empurre até o clique).',
+            'Verifique a outra ponta no switch/tomada de rede — se puder, troque de porta.',
+            'Veja se os LEDs da porta de rede acendem; se não, teste outro cabo.',
+            'Confirme que a impressora está ligada (cabo de força) e aguarde ela reconectar.',
+        ],
+    },
 };
 
 /* ------------------------------------------------------------------
@@ -217,15 +244,18 @@ function applyConn(kind, text) {
 }
 
 function renderGuide(state) {
-    const guide = $('zp-guide');
+    const btn = $('guide-open');
     const g = GUIDES[state];
-    if (!g) { guide.classList.add('hidden'); return; }
+    if (!g) {                       // sem guia p/ esse estado: some o botão e fecha o pop-up
+        if (btn) btn.classList.add('hidden');
+        $('guide-modal').classList.add('hidden');
+        return;
+    }
     $('guide-title').textContent = g.title;
     $('guide-anim').innerHTML = g.anim;
     $('guide-steps').innerHTML = g.steps.map(s => `<li>${s}</li>`).join('');
-    guide.classList.remove('hidden');
-    guide.classList.add('is-error', 'open');   // já aparece aberto no erro
-    $('guide-toggle').textContent = 'ocultar ▴';
+    $('guide-open-label').textContent = g.title;
+    if (btn) { btn.classList.remove('hidden'); btn.title = g.title; }
 }
 
 function renderState(state, detail) {
@@ -578,13 +608,13 @@ function init() {
         catch (_) { $('counter-diag-text').select(); document.execCommand('copy'); showToast('Diagnóstico copiado!'); }
     });
 
-    // guia colapsável
-    document.getElementById('guide-toggle').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const g = $('zp-guide');
-        g.classList.toggle('open');
-        $('guide-toggle').textContent = g.classList.contains('open') ? 'ocultar ▴' : 'ver ▾';
-    });
+    // guia de resolução: abre num pop-up animado
+    const guideModal = $('guide-modal');
+    const closeGuide = () => guideModal.classList.add('hidden');
+    $('guide-open').addEventListener('click', () => guideModal.classList.remove('hidden'));
+    $('guide-modal-close').addEventListener('click', closeGuide);
+    guideModal.addEventListener('click', (e) => { if (e.target === guideModal) closeGuide(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !guideModal.classList.contains('hidden')) closeGuide(); });
 
     // ações avançadas — abrem num modal próprio
     const advModal = $('adv-modal');
