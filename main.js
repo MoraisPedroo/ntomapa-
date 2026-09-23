@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return point;
     }
 
-    const MAP_VERSION = '3'; // aumente ao trocar a planta para furar o cache
+    const MAP_VERSION = '4'; // aumente ao trocar a planta para furar o cache
     function updateMapImage() {
         mapImage.src = (currentFloor === 1 ? 'plantanto.jpg' : 'plantanto2.jpg') + '?v=' + MAP_VERSION;
     }
