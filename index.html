@@ -176,43 +176,15 @@
         </div>
         <h2 id="zp-name">—</h2>
         <dl class="info-list">
-          <div><dt>SELB</dt><dd id="zp-selb" class="mono">—</dd></div>
-          <div><dt>Endereço IP</dt><dd id="zp-ip" class="mono">—</dd></div>
+          <div class="il-row">
+            <div><dt>SELB</dt><dd id="zp-selb" class="mono">—</dd></div>
+            <div><dt>Endereço IP</dt><dd id="zp-ip" class="mono">—</dd></div>
+          </div>
           <div><dt>Observações</dt><dd id="zp-observations">—</dd></div>
         </dl>
         <div class="conn-line">
           <span id="zp-conn-dot" class="conn-dot"></span>
           <span id="zp-conn-text">Consultando…</span>
-        </div>
-
-        <!-- Contador de impressão (visor digital) -->
-        <div id="zp-counter" class="counter-display">
-          <div class="cd-scan"></div>
-          <div class="cd-head">
-            <span class="cd-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V4h12v5M6 18h12v2H6zM6 14h12"/><rect x="4" y="9" width="16" height="8" rx="1.5"/></svg>
-              CONTADOR
-            </span>
-            <span id="counter-live" class="cd-live" title="Atualiza a cada 5s">● LIVE</span>
-          </div>
-          <div class="cd-value-row">
-            <span id="counter-value" class="cd-value">----</span>
-            <span class="cd-unit">etiquetas<br>no total</span>
-          </div>
-          <div class="cd-since">
-            <span class="cd-since-label">Desde a última reinicialização</span>
-            <b id="counter-reboot" class="cd-since-val">—</b>
-            <span class="cd-since-unit">etiquetas</span>
-          </div>
-          <div class="cd-meta">
-            <div><span>LIGADA HÁ</span><b id="counter-uptime">—</b></div>
-            <div><span>ATUALIZADO</span><b id="counter-updated">—</b></div>
-          </div>
-          <button id="counter-diag-btn" class="cd-diag-btn hidden">ⓘ diagnóstico</button>
-          <div id="counter-diag" class="cd-diag hidden">
-            <textarea id="counter-diag-text" readonly rows="6"></textarea>
-            <button id="counter-diag-copy" class="cd-diag-copy">Copiar diagnóstico</button>
-          </div>
         </div>
 
         <!-- Guia de resolução (animado) -->
@@ -278,6 +250,43 @@
           </div>
         </div>
       </aside>
+
+      <!-- Contador de impressão — barra horizontal, largura total -->
+      <div id="zp-counter" class="counter-display counter-bar">
+        <div class="cd-scan"></div>
+        <div class="cb-left">
+          <span class="cd-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V4h12v5M6 18h12v2H6zM6 14h12"/><rect x="4" y="9" width="16" height="8" rx="1.5"/></svg>
+            CONTADOR
+          </span>
+          <span id="counter-live" class="cd-live" title="Atualiza a cada 5s">● LIVE</span>
+        </div>
+        <div class="cb-stats">
+          <div class="cb-stat main">
+            <b id="counter-value" class="cd-value">----</b>
+            <span>etiquetas no total</span>
+          </div>
+          <div class="cb-div"></div>
+          <div class="cb-stat">
+            <b id="counter-reboot" class="cd-since-val">—</b>
+            <span>desde a reinicialização</span>
+          </div>
+          <div class="cb-div"></div>
+          <div class="cb-stat">
+            <b id="counter-uptime">—</b>
+            <span>ligada há</span>
+          </div>
+          <div class="cb-stat">
+            <b id="counter-updated">—</b>
+            <span>atualizado</span>
+          </div>
+        </div>
+        <button id="counter-diag-btn" class="cd-diag-btn hidden">ⓘ diagnóstico</button>
+        <div id="counter-diag" class="cd-diag hidden">
+          <textarea id="counter-diag-text" readonly rows="6"></textarea>
+          <button id="counter-diag-copy" class="cd-diag-copy">Copiar diagnóstico</button>
+        </div>
+      </div>
     </div>
   </div>
 
