@@ -82,11 +82,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function saveStatus(id, state, detail) {
         if (!id || !state || state === 'CONNECTING' || state === 'BOOT') return;
         const prev = printerStatus[id] || {};
+        const now = Date.now();
+        const off = state === 'OFFLINE';
         const entry = {
             state,
             detail: detail || '',
-            lastOnline: state !== 'OFFLINE' ? Date.now() : (prev.lastOnline || null),
-            updatedAt: Date.now()
+            lastOnline: off ? (prev.lastOnline || null) : now,
+            // marca o momento em que caiu; mantém enquanto continuar offline (p/ contar "sem conexão há X")
+            offlineSince: off ? (prev.offlineSince || now) : null,
+            updatedAt: now
         };
         printerStatus[id] = entry;   // reflete na hora
         applyPointStatus(id);
@@ -134,8 +138,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             let stLine = '';
             if (st) {
                 stLine = `<br><span class="tt-status ${pointStatusClass(st.state)}">● ${STATE_LABELS[st.state] || st.state}</span>`;
-                const lo = formatLastOnline(st.lastOnline);
-                if (lo) stLine += `<br><span class="tt-online">visto online: ${lo}</span>`;
+                if (st.state === 'OFFLINE') {
+                    const urgent = offlineMins(st) >= OFFLINE_ALERT_MIN;
+                    stLine += `<br><span class="tt-offline${urgent ? ' urgent' : ''}">⚠ Sem conexão ${formatOffline(st)}${urgent ? ' — verificar!' : ''}</span>`;
+                    const lo = formatLastOnline(st.lastOnline);
+                    if (lo) stLine += `<br><span class="tt-online">online pela última vez ${lo}</span>`;
+                } else {
+                    const lo = formatLastOnline(st.lastOnline);
+                    if (lo) stLine += `<br><span class="tt-online">visto online: ${lo}</span>`;
+                }
             }
             tooltip.innerHTML = `<strong>${printer.name}</strong><br>SELB: ${printer.selb} (Andar ${printer.floor})${stLine}`;
             const pRect = e.currentTarget.getBoundingClientRect();
@@ -204,7 +215,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             onEdit: openEditForm,
             onDelete: confirmDelete,
             // status muda no visor (ex.: resolveu a pausa) -> salva no Firebase + repinta o ponto
-            onStatus: (id, state, detail) => saveStatus(id, state, detail)
+            onStatus: (id, state, detail) => saveStatus(id, state, detail),
+            // "sem conexão há X" (cresce sozinho) p/ o visor mostrar quando estiver offline
+            offlineInfo: (id) => formatOffline(printerStatus[id])
         });
         logPanel(`Selecionado: ${printer.name} (${printer.ip})`);
     }
@@ -412,6 +425,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (day < 30) return `há ${day} dia${day > 1 ? 's' : ''}`;
         return new Date(ts).toLocaleDateString('pt-BR');
     }
+    // Quantos minutos a impressora está sem conexão (cresce sozinho: é calculado sobre a hora atual).
+    function offlineMins(entry) {
+        const since = entry && (entry.offlineSince || entry.lastOnline || entry.updatedAt);
+        return since ? Math.floor((Date.now() - since) / 60000) : 0;
+    }
+    // "há 1 min" → "há 45 min" → "há 3h 20min" → "há 3 dias" (começa em 1 min e vai aumentando)
+    function formatOffline(entry) {
+        if (!entry) return 'há 1 min';
+        let min = offlineMins(entry);
+        if (min < 1) min = 1;                       // começa em 1 min assim que detecta
+        if (min < 60) return `há ${min} min`;
+        const h = Math.floor(min / 60);
+        if (h < 24) { const m = min % 60; return m ? `há ${h}h ${m}min` : `há ${h}h`; }
+        const day = Math.floor(h / 24), hr = h % 24;
+        return hr ? `há ${day} dia${day > 1 ? 's' : ''} e ${hr}h` : `há ${day} dia${day > 1 ? 's' : ''}`;
+    }
+    const OFFLINE_ALERT_MIN = 1440;   // 24h sem conexão => alerta "verificar!"
 
     const CK_SEV = { OFFLINE: 0, ERROR: 1, HEAD_OPEN: 1, RIBBON_OUT: 1, MEDIA_OUT: 1, UNKNOWN: 2, PAUSED: 2, READY: 3, ONLINE: 3, CONNECTING: 2 };
 
@@ -444,10 +474,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 catch (_) { res = { state: 'OFFLINE', detail: 'Falha' }; }
                 results.push({ printer: p, state: res.state, detail: res.detail });
                 const prev = printerStatus[p.id] || {};
+                const now = Date.now();
+                const off = res.state === 'OFFLINE';
                 printerStatus[p.id] = {                              // pinta o ponto + guarda última vez online
                     state: res.state, detail: res.detail || '',
-                    lastOnline: res.state !== 'OFFLINE' ? Date.now() : (prev.lastOnline || null),
-                    updatedAt: Date.now()
+                    lastOnline: off ? (prev.lastOnline || null) : now,
+                    offlineSince: off ? (prev.offlineSince || now) : null,   // desde quando está sem conexão
+                    updatedAt: now
                 };
                 applyPointStatus(p.id);
                 done++;
@@ -517,8 +550,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         items.forEach(r => {
             const row = document.createElement('div');
             row.className = 'ck-row ' + CK_KIND(r.state);
-            const lo = (r.state === 'OFFLINE') ? formatLastOnline((printerStatus[r.printer.id] || {}).lastOnline) : null;
-            const loTxt = lo ? ` · visto online ${lo}` : '';
+            let loTxt = '';
+            if (r.state === 'OFFLINE') {
+                const entry = printerStatus[r.printer.id] || {};
+                const urgent = offlineMins(entry) >= OFFLINE_ALERT_MIN;
+                loTxt = ` · <b class="ck-off${urgent ? ' urgent' : ''}">sem conexão ${formatOffline(entry)}${urgent ? ' ⚠ verificar' : ''}</b>`;
+                const lo = formatLastOnline(entry.lastOnline);
+                if (lo) loTxt += ` · online por último ${lo}`;
+            }
             row.innerHTML =
                 `<span class="ck-dot"></span>` +
                 `<span class="ck-row-main"><b>${r.printer.name}</b>` +

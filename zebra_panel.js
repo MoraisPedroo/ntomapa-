@@ -265,8 +265,15 @@ function renderState(state, detail) {
     const lcd = $('zt-lcd');
     if (!lcd) return;
 
+    // persiste/repinta o mapa primeiro, p/ o offlineInfo já refletir o offlineSince atualizado
+    if (current && handlers.onStatus && !['CONNECTING', 'BOOT'].includes(state)) handlers.onStatus(current.id, state, detail);
+
+    // quanto tempo está sem conexão (cresce sozinho) — só quando offline
+    const offInfo = (state === 'OFFLINE' && current && handlers.offlineInfo) ? handlers.offlineInfo(current.id) : null;
+
     const useDetail = detail && ['UNKNOWN','OFFLINE','ERROR','ONLINE'].includes(state);
-    const sub = useDetail ? detail : meta.sub;
+    const baseSub = useDetail ? detail : meta.sub;
+    const sub = offInfo ? `Sem conexão ${offInfo}. ${baseSub}` : baseSub;
     const flags = { net: state !== 'OFFLINE', ribbon: state !== 'RIBBON_OUT', label: state !== 'MEDIA_OUT' };
 
     lcd.className = 'zt-lcd ' + meta.cls;
@@ -277,14 +284,11 @@ function renderState(state, detail) {
     lcd.innerHTML = lcdStatusbar(flags) + lcdBody(bodyIcon, meta.title, sub, guideLink) + lcdFooter(meta.chip);
 
     applyLeds(state);
-    applyConn(meta.conn, { ok:'Online via túnel corporativo', down: detail || 'Sem resposta da impressora', wait:'Consultando status…' }[meta.conn]);
+    applyConn(meta.conn, { ok:'Online via túnel corporativo', down: offInfo ? `Sem conexão ${offInfo}` : (detail || 'Sem resposta da impressora'), wait:'Consultando status…' }[meta.conn]);
     renderGuide(state);
 
     const pauseKey = $('key-pause');
     if (pauseKey) pauseKey.textContent = state === 'PAUSED' ? 'RESUME' : 'PAUSE';
-
-    // avisa o mapa do status atual (repinta o ponto), exceto nos estados de transição
-    if (current && handlers.onStatus && !['CONNECTING', 'BOOT'].includes(state)) handlers.onStatus(current.id, state, detail);
 
     requestAnimationFrame(fitVisor);   // reajusta p/ caber numa tela só
 }
