@@ -141,8 +141,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (st.state === 'OFFLINE') {
                     const urgent = offlineMins(st) >= OFFLINE_ALERT_MIN;
                     stLine += `<br><span class="tt-offline${urgent ? ' urgent' : ''}">⚠ Sem conexão ${formatOffline(st)}${urgent ? ' — verificar!' : ''}</span>`;
-                    const lo = formatLastOnline(st.lastOnline);
-                    if (lo) stLine += `<br><span class="tt-online">online pela última vez ${lo}</span>`;
                 } else {
                     const lo = formatLastOnline(st.lastOnline);
                     if (lo) stLine += `<br><span class="tt-online">visto online: ${lo}</span>`;
@@ -425,9 +423,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (day < 30) return `há ${day} dia${day > 1 ? 's' : ''}`;
         return new Date(ts).toLocaleDateString('pt-BR');
     }
-    // Quantos minutos a impressora está sem conexão (cresce sozinho: é calculado sobre a hora atual).
+    // Há quantos minutos a impressora está sem conexão. Ancorado na ÚLTIMA VEZ que esteve
+    // online de verdade (lastOnline) — esse horário NÃO muda enquanto ela segue offline, então
+    // a contagem só cresce e NUNCA reseta ao verificar de novo. offlineSince é só o fallback
+    // p/ quem nunca foi vista online. (NUNCA usar updatedAt: ele muda a cada verificação e zeraria.)
     function offlineMins(entry) {
-        const since = entry && (entry.offlineSince || entry.lastOnline || entry.updatedAt);
+        const since = entry && (entry.lastOnline || entry.offlineSince);
         return since ? Math.floor((Date.now() - since) / 60000) : 0;
     }
     // "há 1 min" → "há 45 min" → "há 3h 20min" → "há 3 dias" (começa em 1 min e vai aumentando)
@@ -555,8 +556,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const entry = printerStatus[r.printer.id] || {};
                 const urgent = offlineMins(entry) >= OFFLINE_ALERT_MIN;
                 loTxt = ` · <b class="ck-off${urgent ? ' urgent' : ''}">sem conexão ${formatOffline(entry)}${urgent ? ' ⚠ verificar' : ''}</b>`;
-                const lo = formatLastOnline(entry.lastOnline);
-                if (lo) loTxt += ` · online por último ${lo}`;
             }
             row.innerHTML =
                 `<span class="ck-dot"></span>` +
