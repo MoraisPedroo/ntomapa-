@@ -550,11 +550,11 @@ export function openZebraPanel(printer, apiGetter, opts = {}) {
     renderCounter(null);
     $('counter-updated').textContent = 'consultando…';
 
+    // consulta o túnel UMA vez (sem polling automático — economiza requisições);
+    // atualiza de novo só no botão "Atualizar status" ou ao enviar um comando
     renderState('CONNECTING');
     refreshStatus();
-    startPolling();
     refreshCounter();
-    startCounterPoll();
 }
 
 export function closeZebraPanel() {
@@ -592,7 +592,7 @@ function init() {
     $('key-feed').addEventListener('click', () => keyAction('~PH', 'Feed', 2000));
     $('key-cancel').addEventListener('click', () => keyAction('~JA', 'Cancelar trabalhos'));
 
-    $('zp-refresh').addEventListener('click', () => { if (!busy) { renderState('CONNECTING'); refreshStatus(); } });
+    $('zp-refresh').addEventListener('click', () => { if (!busy) { renderState('CONNECTING'); refreshStatus(); refreshCounter(); } });
     $('zp-calibrate').addEventListener('click', () => keyAction(CALIBRAGEM, 'Calibrar', 4000));
     $('zp-headtest').addEventListener('click', () => keyAction(TESTE_CABECA, 'Teste Cabeça'));
     $('zp-open-web').addEventListener('click', () => {

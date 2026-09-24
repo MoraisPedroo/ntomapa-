@@ -475,6 +475,7 @@ body.map-full #checkup-modal{ z-index:300; }
 #map-tooltip .tt-status.ps-off{ color:#94a3b8; }
 #map-tooltip .tt-status.ps-att{ color:#f59e0b; }
 #map-tooltip .tt-status.ps-prob{ color:#ef4444; }
+#map-tooltip .tt-online{ display:inline-block; margin-top:2px; font-size:.68rem; color:var(--muted); }
 @keyframes highlight-pulse{ 0%{box-shadow:0 0 0 0 rgba(56,189,248,.7);} 70%{box-shadow:0 0 0 18px rgba(56,189,248,0);} 100%{box-shadow:0 0 0 0 rgba(56,189,248,0);} }
 
 #map-tooltip{

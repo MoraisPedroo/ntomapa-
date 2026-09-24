@@ -1,4 +1,4 @@
-import { configDocRef, onSnapshot, setDoc } from './firebaseConfig.js';
+import { configDocRef, statusDocRef, onSnapshot, setDoc } from './firebaseConfig.js';
 import { TESTE_CABECA, CALIBRAGEM, ZT421_CONFIG } from './data.js';
 import { showToast, logPanel, debounce } from './helpers.js';
 import { fetchPrinterStatus, sendCommand, STATE_LABELS } from './printer_logic.js';
@@ -73,6 +73,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('display-api-url').textContent = API_BASE_URL;
 
+    /* ---- Status das impressoras salvo no Firebase (todos veem sem bater no túnel) ---- */
+    onSnapshot(statusDocRef, (snap) => {
+        printerStatus = (snap.exists() && snap.data()) ? snap.data() : {};
+        document.querySelectorAll('.printer-point').forEach(pt => applyPointStatus(pt.dataset.printerId));
+    });
+    // Salva/atualiza o status de uma impressora no Firebase (só quando consultado de verdade)
+    async function saveStatus(id, state, detail) {
+        if (!id || !state || state === 'CONNECTING' || state === 'BOOT') return;
+        const prev = printerStatus[id] || {};
+        const entry = {
+            state,
+            detail: detail || '',
+            lastOnline: state !== 'OFFLINE' ? Date.now() : (prev.lastOnline || null),
+            updatedAt: Date.now()
+        };
+        printerStatus[id] = entry;   // reflete na hora
+        applyPointStatus(id);
+        try { await setDoc(statusDocRef, { [id]: entry }, { merge: true }); } catch (_) {}
+    }
+
     document.getElementById('btn-save-api-url').addEventListener('click', async () => {
         const newUrl = document.getElementById('new-api-url').value.trim();
         if (!newUrl) { showToast('Informe um link válido.'); return; }
@@ -111,13 +131,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         point.addEventListener('mouseenter', (e) => {
             if (placing) return;
             const st = printerStatus[printer.id];
-            const stLine = st ? `<br><span class="tt-status ${pointStatusClass(st.state)}">● ${STATE_LABELS[st.state] || st.state}</span>` : '';
+            let stLine = '';
+            if (st) {
+                stLine = `<br><span class="tt-status ${pointStatusClass(st.state)}">● ${STATE_LABELS[st.state] || st.state}</span>`;
+                const lo = formatLastOnline(st.lastOnline);
+                if (lo) stLine += `<br><span class="tt-online">visto online: ${lo}</span>`;
+            }
             tooltip.innerHTML = `<strong>${printer.name}</strong><br>SELB: ${printer.selb} (Andar ${printer.floor})${stLine}`;
             const pRect = e.currentTarget.getBoundingClientRect();
             const cRect = mapContainer.getBoundingClientRect();
             const topInMap = pRect.top - cRect.top;
             // se o ponto está muito no alto, a dica vira para baixo (senão é cortada)
-            tooltip.classList.toggle('below', topInMap < 74);
+            tooltip.classList.toggle('below', topInMap < 110);
             tooltip.style.top = `${topInMap}px`;
             tooltip.style.left = `${pRect.left - cRect.left}px`;
             tooltip.classList.add('show');
@@ -178,8 +203,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         openZebraPanel(printer, apiGetter, {
             onEdit: openEditForm,
             onDelete: confirmDelete,
-            // status muda no visor (ex.: resolveu a pausa) -> repinta o ponto no mapa
-            onStatus: (id, state, detail) => { printerStatus[id] = { state, detail }; applyPointStatus(id); }
+            // status muda no visor (ex.: resolveu a pausa) -> salva no Firebase + repinta o ponto
+            onStatus: (id, state, detail) => saveStatus(id, state, detail)
         });
         logPanel(`Selecionado: ${printer.name} (${printer.ip})`);
     }
@@ -378,6 +403,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const st = printerStatus[id];
         if (st) pt.classList.add(pointStatusClass(st.state));
     }
+    function formatLastOnline(ts) {
+        if (!ts) return null;
+        const diff = Date.now() - ts, min = Math.floor(diff / 60000), h = Math.floor(diff / 3600000), day = Math.floor(diff / 86400000);
+        if (min < 1) return 'agora há pouco';
+        if (min < 60) return `há ${min} min`;
+        if (h < 24) return `há ${h}h`;
+        if (day < 30) return `há ${day} dia${day > 1 ? 's' : ''}`;
+        return new Date(ts).toLocaleDateString('pt-BR');
+    }
 
     const CK_SEV = { OFFLINE: 0, ERROR: 1, HEAD_OPEN: 1, RIBBON_OUT: 1, MEDIA_OUT: 1, UNKNOWN: 2, PAUSED: 2, READY: 3, ONLINE: 3, CONNECTING: 2 };
 
@@ -409,7 +443,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 try { res = await fetchPrinterStatus(p.ip, API_BASE_URL); }
                 catch (_) { res = { state: 'OFFLINE', detail: 'Falha' }; }
                 results.push({ printer: p, state: res.state, detail: res.detail });
-                printerStatus[p.id] = { state: res.state, detail: res.detail };  // pinta o ponto no mapa
+                const prev = printerStatus[p.id] || {};
+                printerStatus[p.id] = {                              // pinta o ponto + guarda última vez online
+                    state: res.state, detail: res.detail || '',
+                    lastOnline: res.state !== 'OFFLINE' ? Date.now() : (prev.lastOnline || null),
+                    updatedAt: Date.now()
+                };
                 applyPointStatus(p.id);
                 done++;
                 barFill.style.width = Math.round(done / total * 100) + '%';
@@ -419,6 +458,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
         checkupRunning = false;
         lastCheckup = results;
+        // salva TODOS os status no Firebase de uma vez (um write só)
+        const batch = {};
+        results.forEach(r => { batch[r.printer.id] = printerStatus[r.printer.id]; });
+        try { await setDoc(statusDocRef, batch, { merge: true }); } catch (_) {}
         renderCheckup(results);
     }
 
@@ -474,10 +517,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         items.forEach(r => {
             const row = document.createElement('div');
             row.className = 'ck-row ' + CK_KIND(r.state);
+            const lo = (r.state === 'OFFLINE') ? formatLastOnline((printerStatus[r.printer.id] || {}).lastOnline) : null;
+            const loTxt = lo ? ` · visto online ${lo}` : '';
             row.innerHTML =
                 `<span class="ck-dot"></span>` +
                 `<span class="ck-row-main"><b>${r.printer.name}</b>` +
-                `<span>${r.printer.ip} · Andar ${r.printer.floor}${r.printer.selb ? ' · ' + r.printer.selb : ''}</span></span>` +
+                `<span>${r.printer.ip} · Andar ${r.printer.floor}${r.printer.selb ? ' · ' + r.printer.selb : ''}${loTxt}</span></span>` +
                 `<span class="ck-badge">${STATE_LABELS[r.state] || r.state}</span>` +
                 `<span class="ck-row-actions">` +
                   `<button class="ck-act ck-map" title="Mostrar no mapa" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></button>` +

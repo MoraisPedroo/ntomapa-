@@ -20,10 +20,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const configDocRef   = doc(db, "system_config", "api_settings");
+const statusDocRef   = doc(db, "system_config", "printer_status");   // status salvo p/ todos verem sem bater no túnel
 const printersColRef = collection(db, "printers");
 
 export {
-    db, configDocRef, printersColRef,
+    db, configDocRef, statusDocRef, printersColRef,
     doc, collection,
     onSnapshot, setDoc, getDoc, getDocs,
     addDoc, updateDoc, deleteDoc, writeBatch
