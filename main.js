@@ -574,11 +574,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Raspberry Pi que traduz impressão 300dpi -> 200dpi. Não é Zebra: não tem visor,
-    // é só uma página web -> abre numa aba nova (só acessível na rede da empresa).
+    // é uma página web -> abre DENTRO do site, no navegador interno, sempre pelo túnel
+    // (assim funciona também de fora do NTO).
     const DP_APPLIANCE_URL = 'http://172.19.107.250:8080/';
     function openDpAppliance() {
-        logPanel(`DP Appliance: abrindo ${DP_APPLIANCE_URL}`);
-        window.open(DP_APPLIANCE_URL, '_blank', 'noopener');
+        logPanel(`DP Appliance: abrindo ${DP_APPLIANCE_URL} pelo túnel`);
+        openBrowserWindow(DP_APPLIANCE_URL, API_BASE_URL, { title: 'DP Appliance', brand: 'DP APPLIANCE' });
     }
 
     function setupToolsMenu() {

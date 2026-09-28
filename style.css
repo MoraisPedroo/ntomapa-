@@ -974,7 +974,7 @@ body.map-full #checkup-modal{ z-index:300; }
 /* ============================================================
    JANELA FLUTUANTE (Browser proxy)
    ============================================================ */
-.floating-window{ position:fixed; top:8%; left:10%; width:840px; height:620px; background:var(--panel-solid); border-radius:14px; box-shadow:var(--shadow-lg); z-index:9999; display:flex; flex-direction:column; overflow:hidden; resize:both; min-width:380px; min-height:300px; border:1px solid var(--card-border); }
+.floating-window{ position:fixed; top:8%; left:10%; width:min(840px, 88vw); height:min(620px, 86vh); background:var(--panel-solid); border-radius:14px; box-shadow:var(--shadow-lg); z-index:9999; display:flex; flex-direction:column; overflow:hidden; resize:both; min-width:min(380px, 88vw); min-height:300px; border:1px solid var(--card-border); }
 .floating-window.maximized{ top:2%!important; left:2%!important; width:96vw!important; height:94vh!important; resize:none; }
 .floating-header{ height:46px; background:var(--card); border-bottom:1px solid var(--card-border); display:flex; align-items:center; justify-content:space-between; padding:0 8px 0 16px; cursor:grab; user-select:none; gap:10px; }
 .floating-header:active{ cursor:grabbing; }
@@ -993,6 +993,20 @@ body.map-full #checkup-modal{ z-index:300; }
 #browser-url:focus{ border-color:var(--input-focus); }
 .browser-content{ flex:1; position:relative; background:#fff; }
 #interface-frame{ width:100%; height:100%; border:none; background:#fff; }
+/* celular: a janela vira tela cheia (antes tinha 840px fixos e vazava da tela).
+   !important vence o left/top/width/height que ficam inline ao arrastar/redimensionar no desktop */
+@media (max-width:720px){
+  .floating-window, .floating-window.maximized{
+    inset:0; top:0!important; left:0!important; width:auto!important; height:auto!important;
+    min-width:0; min-height:0; border-radius:0; border:none; resize:none;
+  }
+  .floating-header{ cursor:default; padding:0 6px 0 12px; }
+  #win-download, #win-min, #win-max{ display:none; }   /* só faz sentido com janela solta */
+  .win-ctl{ width:38px; height:38px; font-size:17px; } /* alvo de toque maior */
+  .browser-bar{ height:46px; padding:0 8px; }
+  .browser-bar button{ width:34px; height:34px; }
+  #browser-url{ font-size:16px; min-width:0; }         /* 16px evita o zoom automático do iOS ao focar */
+}
 
 .browser-loader{ position:absolute; inset:0; background:var(--panel-bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:10; }
 .browser-loader span{ font-size:.82rem; color:var(--muted); }
@@ -1003,6 +1017,7 @@ body.map-full #checkup-modal{ z-index:300; }
 .browser-transition.hidden{ display:none; }
 .bt-core{ position:relative; display:flex; flex-direction:column; align-items:center; gap:16px; }
 .bt-zebra{ font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:1.6rem; letter-spacing:.5em; padding-left:.5em; color:#e0f2fe; animation:btpulse 1.1s ease-in-out infinite; }
+.bt-zebra.long{ font-size:1.3rem; letter-spacing:.26em; padding-left:.26em; white-space:nowrap; } /* nomes longos (DP APPLIANCE) */
 .bt-beam{ width:180px; height:4px; border-radius:99px; background:rgba(255,255,255,.12); overflow:hidden; position:relative; }
 .bt-beam::after{ content:''; position:absolute; inset:0; width:40%; border-radius:99px; background:linear-gradient(90deg,#38bdf8,#22d3ee); animation:btbeam 1s cubic-bezier(.5,0,.4,1) infinite; }
 .bt-label{ font-size:.78rem; letter-spacing:.05em; color:#94a3b8; }

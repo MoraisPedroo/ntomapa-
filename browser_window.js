@@ -13,6 +13,7 @@ let currentApiUrl = '';
 let currentDeviceUrl = '';   // URL real do dispositivo em exibição
 let expectingUrl = null;     // URL que nós mesmos pedimos (evita duplo push no histórico)
 let history = [];
+let titlePrefix = 'Interface'; // "Interface" (impressoras) ou o nome do app aberto (ex.: DP Appliance)
 
 const windowEl   = () => document.getElementById('floating-window');
 const iframe     = () => document.getElementById('interface-frame');
@@ -47,7 +48,7 @@ function hideLoader() { loader().classList.add('hidden'); }
 function setBar(url) {
     currentDeviceUrl = url;
     urlInput().value = url;
-    titleEl().textContent = 'Interface: ' + url.replace(/^https?:\/\//, '').slice(0, 60);
+    titleEl().textContent = titlePrefix + ': ' + url.replace(/^https?:\/\//, '').slice(0, 60);
 }
 
 function loadDevice(deviceUrl, { push = true } = {}) {
@@ -75,10 +76,17 @@ function playTransition() {
 /* ------------------------------------------------------------------
    API pública
 ------------------------------------------------------------------ */
-export function openBrowserWindow(ipOrUrl, apiBaseUrl) {
+// opts: { title: 'DP Appliance', brand: 'DP APPLIANCE' } — padrão: interface de impressora Zebra
+export function openBrowserWindow(ipOrUrl, apiBaseUrl, opts = {}) {
     currentApiUrl = apiBaseUrl;
     currentDeviceUrl = '';
     history = [];
+    titlePrefix = opts.title || 'Interface';
+    const brand = transition().querySelector('.bt-zebra');
+    if (brand) {
+        brand.textContent = opts.brand || 'ZEBRA';
+        brand.classList.toggle('long', brand.textContent.length > 6);
+    }
     windowEl().classList.remove('hidden');
     windowEl().classList.remove('maximized');
     iframe().removeAttribute('srcdoc');

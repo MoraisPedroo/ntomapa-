@@ -421,6 +421,9 @@ function inject_base($html, $device, $scheme) {
     $dir = preg_replace('#/[^/]*$#', '/', $path);
     if ($dir === '') $dir = '/';
     $baseTag = '<base href="' . htmlspecialchars(self_abs() . '/' . $scheme . '/' . $host . $dir) . '">';
+    // URL (via proxy) da página REAL — se o dispositivo redirecionou (ex.: / -> /login), o iframe
+    // não fica sabendo; um <form> sem action postaria no endereço antigo. Usado abaixo.
+    $selfUrl = self_abs() . '/' . $scheme . '/' . $host . $path . (isset($p['query']) ? '?' . $p['query'] : '');
 
     // protege comentários/scripts/estilos da reescrita
     $store = [];
@@ -435,8 +438,14 @@ function inject_base($html, $device, $scheme) {
     $html = preg_replace('~<base\b[^>]*>~i', '', $html);
 
     // reescreve SÓ as URLs absolutas nas tags; remove target
-    $html = preg_replace_callback('#<([a-zA-Z][a-zA-Z0-9]*)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>#s', function ($m) use ($host, $scheme) {
+    $html = preg_replace_callback('#<([a-zA-Z][a-zA-Z0-9]*)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>#s', function ($m) use ($host, $scheme, $selfUrl) {
         $tag = strtolower($m[1]); $attrs = $m[2];
+        // <form> sem action (ou action="") -> posta na página real, não no endereço pedido
+        if ($tag === 'form') {
+            $act = ' action="' . htmlspecialchars($selfUrl) . '"';
+            if (!preg_match('~\saction\s*=~i', $attrs)) $attrs .= $act;
+            else $attrs = preg_replace('~\saction\s*=\s*(""|\'\')~i', $act, $attrs);
+        }
         $doc   = ['a' => 'href', 'area' => 'href', 'form' => 'action', 'frame' => 'src', 'iframe' => 'src'];
         $asset = ['img' => 'src', 'link' => 'href', 'embed' => 'src', 'source' => 'src', 'audio' => 'src', 'video' => 'src', 'track' => 'src'];
         if (isset($doc[$tag]))   $attrs = _rewrite_abs_attr($attrs, $doc[$tag], $host, $scheme);
@@ -449,12 +458,20 @@ function inject_base($html, $device, $scheme) {
 
     if (!empty($store)) $html = strtr($html, $store);
 
-    // shim de runtime: window.open com caminho absoluto + reporter de URL
+    // shim de runtime: window.open / fetch / XHR com URL absoluta passam pelo proxy + reporter de URL.
+    // fx(): "//host/x" e "http://host/x" -> proxy; "/x" (raiz do dispositivo) -> proxy;
+    // o que já é do proxy (PB...) fica como está; relativas ficam p/ o <base>.
     $shim = '<script>(function(){var PB=' . json_encode(self_abs()) . ',H=' . json_encode($host) . ',S=' . json_encode($scheme) . ';'
-          . 'function fx(u){if(typeof u!=="string")return u;var m=u.match(/^(https?:)?\\/\\/([^\\/]+)(\\/[\\s\\S]*)?$/i);'
-          . 'if(m)return PB+"/"+((m[1]||S+":").replace(":",""))+"/"+m[2]+(m[3]||"/");'
-          . 'if(u.charAt(0)==="/")return PB+"/"+S+"/"+H+u;return u;}'
+          . 'function mine(p){return p===PB||p.indexOf(PB+"/")===0||p.indexOf(PB+"?")===0;}'
+          . 'function fx(u){if(u&&typeof u==="object"&&typeof u.href==="string")u=u.href;if(typeof u!=="string")return u;'
+          . 'var m=u.match(/^(https?:)?\\/\\/([^\\/?#]+)([\\s\\S]*)$/i);'
+          . 'if(m){var p=m[3]||"/";if(p.charAt(0)!=="/")p="/"+p;'
+          . 'if(m[2]===location.host)return mine(p)?u:PB+"/"+S+"/"+H+p;'
+          . 'return PB+"/"+((m[1]||S+":").replace(":",""))+"/"+m[2]+p;}'
+          . 'if(u.charAt(0)==="/")return mine(u)?u:PB+"/"+S+"/"+H+u;return u;}'
           . 'var _o=window.open;window.open=function(u,n,f){return _o.call(window,fx(u),n,f);};'
+          . 'if(window.fetch){var _f=window.fetch;window.fetch=function(i,o){try{if(typeof Request!=="undefined"&&i instanceof Request){var nu=fx(i.url);if(nu!==i.url)i=new Request(nu,i);}else{i=fx(i);}}catch(e){}return _f.call(window,i,o);};}'
+          . 'if(window.XMLHttpRequest){var X=XMLHttpRequest.prototype,_x=X.open;X.open=function(){var a=Array.prototype.slice.call(arguments);a[1]=fx(a[1]);return _x.apply(this,a);};}'
           . 'try{parent.postMessage({type:"PROXY_URL",url:' . json_encode($device) . '},"*");}catch(e){}})();</script>';
 
     $headInject = $baseTag . $shim;
@@ -854,11 +871,11 @@ if (preg_match('~^/(https?)/(.+)$~i', $pathInfo, $pm)) {
     $qs = $_SERVER['QUERY_STRING'] ?? '';
     if ($qs !== '') $device .= (strpos($device, '?') === false ? '?' : '&') . $qs;
 
-    if ($method === 'POST') {
+    if ($method !== 'GET' && $method !== 'HEAD') {   // POST/PUT/PATCH/DELETE (ex.: painéis que usam fetch)
         $ctype = $_SERVER['CONTENT_TYPE'] ?? 'application/x-www-form-urlencoded';
         $body  = file_get_contents('php://input');
         if ($body === '' && !empty($_POST)) $body = build_form_query($_POST);
-        $res = http_request($device, 'POST', $body, ['Content-Type: ' . $ctype]);
+        $res = http_request($device, $method, $body, ['Content-Type: ' . $ctype]);
     } else {
         $res = http_request($device, 'GET');
     }
