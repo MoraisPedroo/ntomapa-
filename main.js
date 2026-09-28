@@ -81,8 +81,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Salva/atualiza o status de uma impressora no Firebase (só quando consultado de verdade)
     async function saveStatus(id, state, detail) {
         if (!id || !state || state === 'CONNECTING' || state === 'BOOT') return;
+        if (String(id).startsWith('adhoc-')) return;   // IP externo avulso: não está no mapa, não salva
         const prev = printerStatus[id] || {};
         const now = Date.now();
+        // o visor aberto consulta a cada 8s: só grava se o status mudou (ou a cada 5 min,
+        // p/ manter o "visto online" em dia) — evita um write no Firebase por consulta
+        if (prev.state === state && (prev.detail || '') === (detail || '') &&
+            prev.updatedAt && now - prev.updatedAt < 5 * 60000) return;
         const off = state === 'OFFLINE';
         const entry = {
             state,

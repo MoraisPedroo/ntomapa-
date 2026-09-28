@@ -322,7 +322,7 @@ function renderReconnecting(attempt, maxAttempts) {
    Telemetria
 ------------------------------------------------------------------ */
 async function refreshStatus() {
-    if (!current || busy || fetching) return;
+    if (!current || busy || fetching || document.hidden) return;   // aba escondida: não gasta túnel
     fetching = true;
     setLed('led-data', 'green', true);
     const mySession = session;
@@ -413,7 +413,7 @@ function renderCounter(res) {
 }
 
 async function refreshCounter() {
-    if (!current || counterFetching) return;
+    if (!current || counterFetching || document.hidden) return;
     counterFetching = true;
     const mySession = session;
     const res = await fetchCounter(current.ip, getApi(), counterPath, counterJobPath);
@@ -554,11 +554,14 @@ export function openZebraPanel(printer, apiGetter, opts = {}) {
     renderCounter(null);
     $('counter-updated').textContent = 'consultando…';
 
-    // consulta o túnel UMA vez (sem polling automático — economiza requisições);
-    // atualiza de novo só no botão "Atualizar status" ou ao enviar um comando
+    // consulta agora e segue atualizando SÓ esta impressora enquanto o painel estiver aberto
+    // (status a cada 8s, contador a cada 5s). As outras não são consultadas — o mapa usa o
+    // status salvo no Firebase. Para ao fechar o painel ou com a aba em segundo plano.
     renderState('CONNECTING');
     refreshStatus();
     refreshCounter();
+    startPolling();
+    startCounterPoll();
 }
 
 export function closeZebraPanel() {
@@ -583,6 +586,10 @@ function init() {
         if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeZebraPanel();
     });
     window.addEventListener('resize', () => { if (!modal.classList.contains('hidden')) fitVisor(); });
+    // voltou pra aba com o painel aberto -> atualiza na hora (o polling pausa com a aba escondida)
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && current && !modal.classList.contains('hidden')) { refreshStatus(); refreshCounter(); }
+    });
     // reajusta sempre que o conteúdo mudar de tamanho (carrega contador, guia, etc.)
     const shellEl = document.querySelector('#zebra-modal .zebra-shell');
     if (window.ResizeObserver && shellEl) {
