@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return point;
     }
 
-    const MAP_VERSION = '4'; // aumente ao trocar a planta para furar o cache
+    const MAP_VERSION = '5'; // aumente ao trocar a planta para furar o cache
     function updateMapImage() {
         mapImage.src = (currentFloor === 1 ? 'plantanto.jpg' : 'plantanto2.jpg') + '?v=' + MAP_VERSION;
     }
@@ -573,6 +573,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // Raspberry Pi que traduz impressão 300dpi -> 200dpi. Não é Zebra: não tem visor,
+    // é só uma página web -> abre numa aba nova (só acessível na rede da empresa).
+    const DP_APPLIANCE_URL = 'http://172.19.107.250:8080/';
+    function openDpAppliance() {
+        logPanel(`DP Appliance: abrindo ${DP_APPLIANCE_URL}`);
+        window.open(DP_APPLIANCE_URL, '_blank', 'noopener');
+    }
+
     function setupToolsMenu() {
         const menu = document.getElementById('tools-menu');   // .tools-fab
         const btn = document.getElementById('tools-btn');     // botão-maleta
@@ -630,6 +638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     case 'extip':     openToolModal('extip'); break;
                     case 'apilink':   openToolModal('apilink'); break;
                     case 'checkup':   openCheckup(); break;
+                    case 'dpappliance': openDpAppliance(); break;
                 }
             });
         });
