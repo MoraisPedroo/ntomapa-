@@ -388,6 +388,9 @@ function render_login_page($url, $wwwAuth, $error = '') {
 function pb_abs($u, $curHost, $curScheme) {
     $u = trim($u);
     if ($u === '' || preg_match('~^(javascript:|mailto:|tel:|data:|about:|#)~i', $u)) return null;
+    // já passa pelo proxy -> não reescreve de novo (evitava /proxy.php/http/H/proxy.php/http/H/...)
+    $sa = self_abs();
+    if ($u === $sa || strpos($u, $sa . '/') === 0 || strpos($u, $sa . '?') === 0) return null;
     if (preg_match('~^(https?)://([^/]+)(/[^\s]*)?$~i', $u, $m)) {
         return self_abs() . '/' . strtolower($m[1]) . '/' . $m[2] . (isset($m[3]) && $m[3] !== '' ? $m[3] : '/');
     }
@@ -421,9 +424,10 @@ function inject_base($html, $device, $scheme) {
     $dir = preg_replace('#/[^/]*$#', '/', $path);
     if ($dir === '') $dir = '/';
     $baseTag = '<base href="' . htmlspecialchars(self_abs() . '/' . $scheme . '/' . $host . $dir) . '">';
-    // URL (via proxy) da página REAL — se o dispositivo redirecionou (ex.: / -> /login), o iframe
-    // não fica sabendo; um <form> sem action postaria no endereço antigo. Usado abaixo.
-    $selfUrl = self_abs() . '/' . $scheme . '/' . $host . $path . (isset($p['query']) ? '?' . $p['query'] : '');
+    // Caminho da página REAL no dispositivo — se ele redirecionou (ex.: / -> /login), o iframe
+    // não fica sabendo; um <form> sem action postaria no endereço antigo. Fica como caminho do
+    // DISPOSITIVO ("/login"): a reescrita de URLs absolutas abaixo o passa pelo proxy (uma vez só).
+    $selfUrl = $path . (isset($p['query']) ? '?' . $p['query'] : '');
 
     // protege comentários/scripts/estilos da reescrita
     $store = [];
