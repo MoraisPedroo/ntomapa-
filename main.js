@@ -54,6 +54,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Elementos do mapa
     const mapContainer = document.getElementById('map-container');
     const mapInner = document.getElementById('map-inner');
+    const mapArea = document.getElementById('map-and-content');          // no celular: área rolável do mapa
+    const mobileMap = window.matchMedia('(max-width:720px), (max-height:500px)');   // em pé ou deitado (igual ao CSS)
     const tooltip = document.getElementById('map-tooltip');
     const mapImage = document.getElementById('map-image');
     const floorSelect = document.getElementById('floor-select');
@@ -170,6 +172,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         mapImage.src = (currentFloor === 1 ? 'plantanto.jpg' : 'plantanto2.jpg') + '?v=' + MAP_VERSION;
     }
 
+    /* Celular: a planta PREENCHE a área visível (modo "cover": cobre largura E altura sem
+       distorcer — os pontos são % da planta, então ficam no lugar). Como a planta é deitada,
+       com o celular em pé ela passa da tela e dá pra arrastar pros lados. Os marcadores
+       encolhem junto (CSS: cqw). No desktop a largura volta a ser a original do HTML. */
+    const MAP_RATIO = 1920 / 1358;
+    const desktopMapWidth = mapContainer.style.width;
+    let lastCoverW = 0;
+    let lastVis = null;   // tamanho da janela visível no último ajuste (p/ manter o centro)
+    function fitMap() {
+        if (!mobileMap.matches) {
+            if (lastCoverW) { mapContainer.style.setProperty('width', desktopMapWidth); lastCoverW = 0; lastVis = null; }
+            mapArea.style.removeProperty('padding-bottom');
+            return;
+        }
+        // ponto da planta que estava no centro da tela (fração 0..1), antes de redimensionar
+        const fx = lastVis ? (mapArea.scrollLeft + lastVis.w / 2) / mapContainer.offsetWidth : 0.5;
+        const fy = lastVis ? (mapArea.scrollTop + lastVis.h / 2) / mapContainer.offsetHeight : 0.5;
+        // reserva embaixo SÓ o que a barra fixa realmente cobre (assim a planta encosta nela);
+        // na tela cheia a barra fica em cima, transparente -> sem reserva
+        if (document.body.classList.contains('map-full')) mapArea.style.removeProperty('padding-bottom');
+        else {
+            const barTop = document.getElementById('map-toolbar').getBoundingClientRect().top;
+            const clientBottom = mapArea.getBoundingClientRect().top + mapArea.clientTop + mapArea.clientHeight;
+            mapArea.style.setProperty('padding-bottom', Math.max(0, Math.ceil(clientBottom - barTop)) + 'px');
+        }
+        const cs = getComputedStyle(mapArea);
+        const W = mapArea.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        const H = mapArea.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+        if (W <= 0 || H <= 0) return;
+        const w = Math.ceil(Math.max(W, H * MAP_RATIO));
+        mapContainer.style.setProperty('width', w + 'px', 'important');
+        // 1ª vez: centro da planta. Depois (girou o celular, tela cheia, barra do navegador):
+        // mantém no centro o mesmo ponto que a pessoa estava olhando
+        mapArea.scrollLeft = fx * mapContainer.offsetWidth - W / 2;
+        mapArea.scrollTop = fy * mapContainer.offsetHeight - H / 2;
+        lastCoverW = w;
+        lastVis = { w: W, h: H };
+    }
+    let fitRaf = 0;
+    const scheduleFitMap = () => { cancelAnimationFrame(fitRaf); fitRaf = requestAnimationFrame(fitMap); };
+    window.addEventListener('resize', scheduleFitMap);
+    mobileMap.addEventListener('change', scheduleFitMap);
+
     function focusPrinter(printer) {
         if (focusResetTimer) clearTimeout(focusResetTimer);
         if (transientLabel) { transientLabel.remove(); transientLabel = null; }
@@ -185,23 +230,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         mapInner.style.transition = '';
 
         const pRect = point.getBoundingClientRect();
-        const mRect = mapContainer.getBoundingClientRect();
-        const scale = 1.4;
-        const pX = (pRect.left - mRect.left) + pRect.width / 2;   // centro do ponto (sem transform)
-        const pY = (pRect.top - mRect.top) + pRect.height / 2;
-        let dx = mRect.width / 2 - scale * pX;
-        let dy = mRect.height / 2 - scale * pY;
-        // trava o deslocamento p/ o mapa (ampliado) sempre cobrir a moldura — nada de área branca
-        const minX = mRect.width - scale * mRect.width, minY = mRect.height - scale * mRect.height;
-        dx = Math.max(minX, Math.min(0, dx));
-        dy = Math.max(minY, Math.min(0, dy));
-        mapInner.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+        const mobile = mobileMap.matches;
+        if (mobile) {
+            // celular: a planta já está grande e rolável -> rola suave até a impressora (sem zoom)
+            const aRect = mapArea.getBoundingClientRect();
+            const visH = mapArea.clientHeight - parseFloat(getComputedStyle(mapArea).paddingBottom);
+            mapArea.scrollTo({
+                left: mapArea.scrollLeft + (pRect.left + pRect.width / 2) - (aRect.left + mapArea.clientWidth / 2),
+                top: mapArea.scrollTop + (pRect.top + pRect.height / 2) - (aRect.top + visH / 2),
+                behavior: 'smooth'
+            });
+        } else {
+            const mRect = mapContainer.getBoundingClientRect();
+            const scale = 1.4;
+            const pX = (pRect.left - mRect.left) + pRect.width / 2;   // centro do ponto (sem transform)
+            const pY = (pRect.top - mRect.top) + pRect.height / 2;
+            let dx = mRect.width / 2 - scale * pX;
+            let dy = mRect.height / 2 - scale * pY;
+            // trava o deslocamento p/ o mapa (ampliado) sempre cobrir a moldura — nada de área branca
+            const minX = mRect.width - scale * mRect.width, minY = mRect.height - scale * mRect.height;
+            dx = Math.max(minX, Math.min(0, dx));
+            dy = Math.max(minY, Math.min(0, dy));
+            mapInner.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+        }
 
         transientLabel = document.createElement('div');
         transientLabel.className = 'focus-label';
         transientLabel.innerHTML = `${printer.name} <span style="color:var(--muted); font-weight:400; margin-left:8px; font-size:.8rem">(${printer.selb})</span>`;
-        transientLabel.style.left = '50%'; transientLabel.style.top = '50%';
-        transientLabel.style.transform = 'translate(-50%, calc(-100% - 20px))';
+        if (mobile) {
+            // em cima do próprio ponto (o centro da planta pode estar fora da tela);
+            // perto do topo vai pra baixo do ponto pra não ser cortado
+            transientLabel.style.left = printer.pos.left; transientLabel.style.top = printer.pos.top;
+            transientLabel.style.transform = parseFloat(printer.pos.top) < 15
+                ? 'translate(-50%, 18px)' : 'translate(-50%, calc(-100% - 16px))';
+        } else {
+            transientLabel.style.left = '50%'; transientLabel.style.top = '50%';
+            transientLabel.style.transform = 'translate(-50%, calc(-100% - 20px))';
+        }
         mapContainer.appendChild(transientLabel);
 
         focusResetTimer = setTimeout(() => {
@@ -365,6 +430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const setFull = (on) => {
             document.body.classList.toggle('map-full', on);
             fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            scheduleFitMap();   // celular: a planta volta a cobrir a área (agora a tela toda)
         };
         fsBtn.addEventListener('click', () => {
             const on = !document.body.classList.contains('map-full');
@@ -735,6 +801,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /* -------------------- Carrega impressoras (store) -------------------- */
     updateMapImage();
+    fitMap();
     await initPrinters((list) => {
         printerData = list;
         renderAllPrinters();
