@@ -27,9 +27,15 @@ const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 /* Faz o visor caber numa tela só: reduz proporcionalmente se passar da altura. */
+// celular/tablet: o visor é um painel que sobe de baixo e rola por dentro (style.css) —
+// NADA de encolher (era isso que deixava tudo minúsculo). Mesmo limite do CSS.
+const SHEET_MQ = window.matchMedia('(max-width:920px), (max-height:500px)');
+let sheetDragging = false;
+
 function fitVisor() {
     const shell = document.querySelector('#zebra-modal .zebra-shell');
     if (!shell) return;
+    if (SHEET_MQ.matches) { if (!sheetDragging) shell.style.transform = ''; return; }
     shell.style.transform = 'none';
     const avail = window.innerHeight * 0.96;
     const natural = shell.offsetHeight;
@@ -540,10 +546,13 @@ export function openZebraPanel(printer, apiGetter, opts = {}) {
     $('zp-selb').textContent = printer.selb || '—';
     $('zp-ip').textContent = printer.ip || '—';
     $('zp-observations').textContent = printer.observations || 'Nenhuma.';
+    $('zp-observations').parentElement.classList.toggle('is-empty', !printer.observations); // no celular some
     $('adv-reply').classList.add('hidden');
     $('adv-reply').textContent = '';
     $('adv-cmd').value = '';
     $('zebra-modal').classList.remove('hidden');
+    const shellEl = document.querySelector('#zebra-modal .zebra-shell');
+    if (shellEl) shellEl.scrollTop = 0;   // celular: painel abre do topo (não onde parou na anterior)
     requestAnimationFrame(fitVisor);
 
     // reseta o contador
@@ -594,6 +603,40 @@ function init() {
     const shellEl = document.querySelector('#zebra-modal .zebra-shell');
     if (window.ResizeObserver && shellEl) {
         new ResizeObserver(() => { if (!modal.classList.contains('hidden')) fitVisor(); }).observe(shellEl);
+    }
+
+    // celular: arrastar o painel pra baixo (estando no topo) fecha — gesto de "bottom sheet"
+    if (shellEl) {
+        let startY = null, dy = 0;
+        shellEl.addEventListener('touchstart', (e) => {
+            // só no modo painel, com o conteúdo no topo; não rouba o "segurar p/ reiniciar"
+            if (!SHEET_MQ.matches || shellEl.scrollTop > 0 || e.target.closest('.zt-power')) { startY = null; return; }
+            startY = e.touches[0].clientY; dy = 0;
+        }, { passive: true });
+        shellEl.addEventListener('touchmove', (e) => {
+            if (startY === null) return;
+            dy = e.touches[0].clientY - startY;
+            if (dy > 0 && shellEl.scrollTop <= 0) {
+                sheetDragging = true;
+                shellEl.style.transition = 'none';
+                shellEl.style.transform = `translateY(${dy}px)`;
+            }
+        }, { passive: true });
+        const endDrag = () => {
+            if (startY === null) return;
+            startY = null;
+            if (!sheetDragging) return;
+            shellEl.style.transition = 'transform .22s ease';
+            if (dy > 110) {                                   // puxou bastante -> fecha
+                shellEl.style.transform = 'translateY(100%)';
+                setTimeout(() => { closeZebraPanel(); shellEl.style.transform = ''; shellEl.style.transition = ''; sheetDragging = false; }, 210);
+            } else {                                          // pouco -> volta
+                shellEl.style.transform = '';
+                setTimeout(() => { shellEl.style.transition = ''; sheetDragging = false; }, 230);
+            }
+        };
+        shellEl.addEventListener('touchend', endDrag);
+        shellEl.addEventListener('touchcancel', endDrag);
     }
 
     $('key-pause').addEventListener('click', () => {

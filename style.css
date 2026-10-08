@@ -1074,3 +1074,118 @@ body.map-full #checkup-modal{ z-index:300; }
 .md-roll{ transform-box:fill-box; transform-origin:center; animation:rbSpin 4s linear infinite; }
 .md-strip{ animation:mdStrip 2s ease-in-out infinite; }
 @keyframes mdStrip{ 0%,100%{ transform:translateX(0);} 50%{ transform:translateX(6px);} }
+
+/* ============================================================
+   VISOR NO CELULAR / TABLET — painel que sobe de baixo ("bottom sheet")
+   Antes: empilhava tudo numa coluna de ~1240px e o fitVisor ENCOLHIA tudo (65%) —
+   ficava uma faixa estreita com LCD e teclas minúsculos. Agora: largura total, nada
+   encolhe, rola por dentro, arrastar pra baixo fecha (zebra_panel.js). Desktop intacto.
+   Mesmo limite no zebra_panel.js (SHEET_MQ).
+   ============================================================ */
+@media (max-width:920px), (max-height:500px){
+  .modal-backdrop{ z-index:110; }   /* acima da barra fixa do rodapé (90/95), que cobria o visor */
+  #zebra-modal, #adv-modal, #guide-modal{ align-items:flex-end; padding:0; }
+
+  #zebra-modal .zebra-shell{
+    width:100%; max-width:640px; max-height:94dvh; margin:0 auto;
+    overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+    display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:none;
+    gap:12px 10px; align-content:start;
+    padding:0 14px calc(18px + env(safe-area-inset-bottom));
+    border-radius:24px 24px 0 0; border-bottom:none;
+    animation:sheetUp .32s cubic-bezier(.2,.9,.3,1);
+  }
+  /* alcinha (indica que dá pra arrastar) */
+  #zebra-modal .zebra-shell::before{
+    content:''; grid-column:1 / -1; order:-2; justify-self:center;
+    width:44px; height:5px; border-radius:99px; background:var(--card-border); margin-top:9px;
+  }
+  /* a coluna de info "some" e os filhos dela entram direto na grade -> dá pra reordenar
+     e pôr o visor da Zebra entre os dados e as ações */
+  #zebra-modal .zebra-info, #zebra-modal .info-actions, #zebra-modal .quick-grid{ display:contents; }
+  #zebra-modal .zebra-shell > *, #zebra-modal .zebra-info > *{ grid-column:1 / -1; margin:0; }
+
+  /* ordem pensada pro dedo: quem é -> status/teclas -> problema -> ações -> contador */
+  /* grid-column/row:auto -> o X se posiciona pela borda do painel (com área de grade definida,
+     um absoluto usaria a área como referência e caía em cima do botão de excluir) */
+  #zebra-modal .zebra-close{ position:absolute; grid-column:auto; grid-row:auto; top:20px; right:12px; width:36px; height:36px; }
+  #zebra-modal .info-head{ order:1; padding-right:46px; }
+  #zebra-modal #zp-name{ order:2; font-size:1.4rem; line-height:1.15; margin-top:-4px; }
+  #zebra-modal .info-list{ order:3; }
+  #zebra-modal .zt-chassis{ order:4; }
+  #zebra-modal .conn-line{ order:5; }
+  #zebra-modal #guide-open{ order:6; }
+  #zebra-modal .info-actions::before{ order:7; }
+  #zebra-modal #zp-refresh, #zebra-modal #zp-open-web, #zebra-modal #zp-iptools,
+  #zebra-modal #zp-calibrate, #zebra-modal #zp-headtest, #zebra-modal #adv-open{ order:8; }
+  #zebra-modal #zp-counter{ order:9; }
+
+  /* SELB e IP lado a lado; observação embaixo (some se não tiver) */
+  #zebra-modal .info-list{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  #zebra-modal .info-list > div:nth-child(3){ grid-column:1 / -1; }
+  #zebra-modal .info-list > div.is-empty{ display:none; }
+  #zebra-modal .info-list dd{ font-size:.9rem; padding:9px 11px; }
+
+  /* chassi: largura total, LEDs em linha embaixo da tela, teclas grandes pro dedo */
+  #zebra-modal .zt-chassis{ width:100%; max-width:460px; justify-self:center; padding:10px 12px 12px; }
+  #zebra-modal .zt-face{ grid-template-columns:1fr; gap:10px; }
+  #zebra-modal .zt-screen-bezel{ padding:9px; }
+  #zebra-modal .zt-lcd{ aspect-ratio:16 / 9; }   /* um pouco mais baixa: sobra espaço pras ações */
+  #zebra-modal .zt-leds{ flex-direction:row; justify-content:space-around; padding:9px 6px; }
+  #zebra-modal .zt-keys{ margin-top:10px; gap:10px; }
+  #zebra-modal .zt-key{ padding:15px 0; font-size:.72rem; letter-spacing:.12em; }
+  #zebra-modal .zt-power{ width:56px; height:56px; }
+
+  /* ações em blocos (3 por linha), ícone em cima — estilo app */
+  #zebra-modal .info-actions::before{
+    content:'Ações'; grid-column:1 / -1; margin-top:4px;
+    font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.14em; color:var(--muted);
+  }
+  #zebra-modal #zp-refresh, #zebra-modal #zp-open-web, #zebra-modal #zp-iptools,
+  #zebra-modal #zp-calibrate, #zebra-modal #zp-headtest, #zebra-modal #adv-open{
+    grid-column:auto; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start;
+    gap:8px; min-height:78px; padding:11px 11px 10px; border-radius:16px; margin:0;
+    font-size:.74rem; line-height:1.22; text-align:left;
+  }
+  #zebra-modal .info-actions .panel-action svg, #zebra-modal #adv-open svg{ width:22px; height:22px; color:var(--accent); }
+  #zebra-modal .sheet-hide{ display:none; }   /* rótulos curtos nos blocos (2 linhas) */
+  #zebra-modal .panel-action:hover{ transform:none; }
+  #zebra-modal .panel-action:active{ transform:scale(.96); }
+
+  #zebra-modal .guide-open-btn{ padding:13px 14px; font-size:.9rem; }
+
+  /* sub-pop-ups do visor no mesmo estilo (painel de baixo) */
+  #adv-modal .adv-modal-card, #guide-modal .guide-modal-card{
+    width:100%; max-width:640px; max-height:90dvh; margin:0 auto;
+    border-radius:24px 24px 0 0; border-bottom:none;
+    padding:28px 18px calc(20px + env(safe-area-inset-bottom));
+    animation:sheetUp .3s cubic-bezier(.2,.9,.3,1);
+  }
+  #adv-modal .adv-modal-card::before, #guide-modal .guide-modal-card::before{
+    content:''; position:absolute; top:9px; left:50%; transform:translateX(-50%);
+    width:44px; height:5px; border-radius:99px; background:var(--card-border);
+  }
+}
+/* celular deitado: pouca altura -> duas colunas. Visor da Zebra à esquerda (fica parado
+   enquanto rola), dados e ações à direita, ações em blocos horizontais (mais baixos) */
+@media (max-height:500px) and (min-width:600px){
+  #zebra-modal .zebra-shell{ max-width:820px; grid-template-columns:minmax(0,1.5fr) repeat(2, minmax(0,1fr)); }
+  #zebra-modal .zebra-shell > *, #zebra-modal .zebra-info > *{ grid-column:2 / -1; }
+  #zebra-modal .zebra-shell::before, #zebra-modal #zp-counter{ grid-column:1 / -1; }
+  #zebra-modal .zebra-close{ grid-column:auto; }   /* continua posicionado pela borda do painel */
+  #zebra-modal .zt-chassis{ grid-column:1; grid-row:2 / span 9; align-self:start; max-width:none; position:sticky; top:0; }
+  #zebra-modal .info-actions::before{ grid-column:2 / -1; }
+  #zebra-modal #zp-refresh, #zebra-modal #zp-iptools, #zebra-modal #zp-headtest{ grid-column:2; }
+  #zebra-modal #zp-open-web, #zebra-modal #zp-calibrate, #zebra-modal #adv-open{ grid-column:3; }
+  #zebra-modal #zp-refresh, #zebra-modal #zp-open-web, #zebra-modal #zp-iptools,
+  #zebra-modal #zp-calibrate, #zebra-modal #zp-headtest, #zebra-modal #adv-open{
+    flex-direction:row; align-items:center; min-height:52px; gap:10px;
+  }
+}
+@keyframes sheetUp{ from{ transform:translateY(100%); } to{ transform:none; } }
+
+/* tela cheia: pop-ups que abrem a partir do visor também ficam por cima dele
+   (antes ficavam em 80, atrás do visor em 300) */
+body.map-full #adv-modal,
+body.map-full #guide-modal,
+body.map-full #printer-form-modal{ z-index:310; }
