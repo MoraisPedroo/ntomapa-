@@ -886,6 +886,7 @@ body.map-full #checkup-modal{ z-index:300; }
 .adv-body{ max-height:0; overflow:hidden; transition:max-height .3s ease; display:flex; flex-direction:column; gap:9px; }
 .adv-section.open .adv-body{ max-height:520px; padding-top:6px; }
 .adv-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.adv-grid .adv-wide{ grid-column:1 / -1; }   /* Restaurar Fábrica sozinho embaixo (ação perigosa) */
 .adv-cmd-row{ display:flex; align-items:center; gap:8px; }
 .quick-cmds{ display:flex; gap:5px; flex-wrap:wrap; flex:1; }
 .chip-cmd{ font-family:'JetBrains Mono',monospace; font-size:.7rem; padding:4px 8px; border-radius:7px; background:var(--card); border:1px solid var(--card-border); color:var(--muted); transition:all .15s; }
