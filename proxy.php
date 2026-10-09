@@ -772,10 +772,16 @@ function ping_printer($ip) {
     return $out;
 }
 
-/* Broadcast/descoberta: varre base.1..254 na porta 9100.
-   Conecta em lote (async), envia um getvar e só considera "impressora" quem
-   RESPONDE — sem falsos positivos. Tem limite de tempo rígido (nunca estoura
-   o max_execution_time e vira 500). Devolve IP + serial + modelo. */
+/* Broadcast/descoberta: varre base.1..254 na porta 9100 e devolve IP + serial + modelo.
+   Só considera "impressora" quem RESPONDE ao getvar — sem falsos positivos. Tem limite
+   de tempo rígido (nunca estoura o max_execution_time e vira 500).
+
+   RÁPIDO: no Windows o connect "assíncrono" do stream_socket_client NÃO é assíncrono —
+   cada IP sem impressora travava ~1s, um por vez (~20s por trecho de 51 IPs). Agora:
+   fase 1 testa a porta de TODOS os IPs ao mesmo tempo com curl_multi (CONNECT_ONLY:
+   só o handshake TCP, nada é enviado à impressora); fase 2 manda o getvar só pros que
+   abriram e lê todos juntos — cada um sai assim que responde. Sem curl_multi, usa o
+   método antigo (scan_network_streams). */
 function scan_network($baseIp, $port = 9100, $from = 1, $to = 254) {
     if (!preg_match('~^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}~', trim($baseIp), $mm)) {
         return ['ok' => false, 'message' => 'IP da faixa inválido.', 'data' => []];
@@ -786,6 +792,114 @@ function scan_network($baseIp, $port = 9100, $from = 1, $to = 254) {
     $to   = min(254, (int)$to);
     if ($to < $from) $to = $from;
     $hardDeadline = microtime(true) + 25;   // nunca passa disso (limite PHP = 60s)
+    $t0 = microtime(true);
+
+    if (function_exists('curl_multi_init') && defined('CURLOPT_CONNECT_ONLY')) {
+        $ips = [];
+        for ($i = $from; $i <= $to; $i++) $ips[] = "$prefix.$i";
+        $open   = scan_open_ports($ips, $port, 1000);
+        $found  = scan_probe_zebras($open, $port, $hardDeadline);
+        $method = 'curl_multi';
+    } else {
+        $found  = scan_network_streams($prefix, $port, $from, $to, $hardDeadline);
+        $method = 'streams';
+    }
+
+    $printers = [];
+    foreach ($found as $ip => $info) $printers[] = ['ip' => $ip, 'serial' => $info['serial'], 'model' => $info['model']];
+    sort_ips($printers);
+    return ['ok' => true, 'data' => $printers, 'from' => $from, 'to' => $to,
+            'method' => $method, 'ms' => (int)round((microtime(true) - $t0) * 1000),
+            'message' => count($printers) . ' impressora(s) em ' . $prefix . '.' . $from . '–' . $to];
+}
+
+/* Fase 1: quais IPs têm a porta aberta — todos ao mesmo tempo (curl_multi é assíncrono
+   de verdade no Windows). CONNECT_ONLY: conecta e para, sem enviar nenhum byte. */
+function scan_open_ports(array $ips, $port, $timeoutMs) {
+    $mh = curl_multi_init();
+    $byId = [];
+    foreach ($ips as $ip) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => "http://$ip:$port/",
+            CURLOPT_CONNECT_ONLY   => true,
+            CURLOPT_CONNECTTIMEOUT_MS => $timeoutMs,
+            CURLOPT_TIMEOUT_MS     => $timeoutMs + 300,
+            CURLOPT_NOSIGNAL       => true,
+            CURLOPT_PROXY          => '',
+            CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        ]);
+        curl_multi_add_handle($mh, $ch);
+        $byId[is_object($ch) ? spl_object_id($ch) : (int)$ch] = [$ch, $ip];
+    }
+    $open = [];
+    $collect = function () use ($mh, &$byId, &$open) {
+        while ($info = curl_multi_info_read($mh)) {
+            $h = $info['handle'];
+            $k = is_object($h) ? spl_object_id($h) : (int)$h;
+            if ((int)$info['result'] === 0 && isset($byId[$k])) $open[] = $byId[$k][1];   // 0 = CURLE_OK: conectou
+        }
+    };
+    $deadline = microtime(true) + ($timeoutMs + 600) / 1000;
+    $running = 0;
+    do {
+        $st = curl_multi_exec($mh, $running);
+        $collect();
+        if ($running > 0 && curl_multi_select($mh, 0.05) === -1) usleep(5000);
+    } while ($running > 0 && $st === CURLM_OK && microtime(true) < $deadline);
+    $collect();
+    foreach ($byId as $pair) { curl_multi_remove_handle($mh, $pair[0]); curl_close($pair[0]); }
+    curl_multi_close($mh);
+    return $open;
+}
+
+/* Fase 2: manda o getvar (serial + modelo) só pros IPs com a porta aberta e lê todos
+   juntos; cada um sai da espera assim que responde os dois valores. */
+function scan_probe_zebras(array $ips, $port, $hardDeadline) {
+    $probe = "! U1 getvar \"device.unique_id\"\r\n! U1 getvar \"device.product_name\"\r\n";
+    $found = [];
+    foreach (array_chunk($ips, 40) as $group) {          // stream_select do Windows: lotes pequenos
+        if (microtime(true) >= $hardDeadline) break;
+        $socks = [];
+        foreach ($group as $ip) {
+            if (microtime(true) >= $hardDeadline) break;
+            $en = 0; $es = '';
+            $fp = @stream_socket_client("tcp://$ip:$port", $en, $es, 1);   // porta já confirmada: conecta na hora
+            if (!$fp) continue;
+            @stream_set_blocking($fp, false);
+            if (@fwrite($fp, $probe)) $socks[$ip] = $fp; else @fclose($fp);
+        }
+        $buffers = [];
+        $rDeadline = min($hardDeadline, microtime(true) + 1.5);
+        while (!empty($socks) && microtime(true) < $rDeadline) {
+            $r = array_values($socks); $w = null; $e = null;
+            if (@stream_select($r, $w, $e, 0, 100000) > 0) {
+                foreach ($r as $fp) {
+                    $ip = array_search($fp, $socks, true);
+                    if ($ip === false) continue;
+                    $chunk = @fread($fp, 2048);
+                    if ($chunk === false || $chunk === '') { @fclose($fp); unset($socks[$ip]); continue; }
+                    $buffers[$ip] = ($buffers[$ip] ?? '') . $chunk;
+                    // respondeu os dois getvar ("serial" "modelo") -> pronto, não espera o resto
+                    if (substr_count($buffers[$ip], '"') >= 4) { @fclose($fp); unset($socks[$ip]); }
+                }
+            }
+        }
+        foreach ($socks as $fp) @fclose($fp);
+        foreach ($buffers as $ip => $buf) {
+            $vals = [];
+            if (preg_match_all('~"([^"]*)"~', $buf, $vm)) $vals = $vm[1];
+            $found[$ip] = [
+                'serial' => (isset($vals[0]) && $vals[0] !== '') ? $vals[0] : 'N/I',
+                'model'  => (isset($vals[1]) && $vals[1] !== '') ? $vals[1] : 'Zebra',
+            ];
+        }
+    }
+    return $found;
+}
+
+/* Método antigo (reserva, sem curl_multi): conecta em lotes de 40 e manda o getvar. */
+function scan_network_streams($prefix, $port, $from, $to, $hardDeadline) {
     $probe = "! U1 getvar \"device.unique_id\"\r\n! U1 getvar \"device.product_name\"\r\n";
     $batch = 40;                             // dentro do limite de fds do Windows
     $found = [];
@@ -844,12 +958,7 @@ function scan_network($baseIp, $port = 9100, $from = 1, $to = 254) {
             ];
         }
     }
-
-    $printers = [];
-    foreach ($found as $ip => $info) $printers[] = ['ip' => $ip, 'serial' => $info['serial'], 'model' => $info['model']];
-    sort_ips($printers);
-    return ['ok' => true, 'data' => $printers, 'from' => $from, 'to' => $to,
-            'message' => count($printers) . ' impressora(s) em ' . $prefix . '.' . $from . '–' . $to];
+    return $found;
 }
 
 function sort_ips(&$arr) {

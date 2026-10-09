@@ -131,50 +131,53 @@ async function doScan() {
     if (!isValidIp(base)) { setStatus('IP da faixa inválido.', 'warn'); return; }
     const prefix = base.split('.').slice(0, 3).join('.');
     const btn = $('ipt-scan-btn');
-    const CHUNK = 51;              // varre em pedaços p/ mostrar progresso ao vivo
+    // 5 trechos disparados JUNTOS (o Apache da empresa atende em paralelo): antes iam um
+    // depois do outro (~20s cada com o proxy antigo -> ~100s). A lista vai enchendo
+    // conforme cada trecho termina.
+    const CHUNK = 51;
+    const ranges = [];
+    for (let from = 1; from <= 254; from += CHUNK) ranges.push([from, Math.min(from + CHUNK - 1, 254)]);
 
     scanning = true;
     scanResults = [];
-    scanRange = `${prefix}.1`;
+    scanRange = `${prefix}.1–254`;
     btn.disabled = true;
     btn.innerHTML = '<span class="ipt-spin" aria-hidden="true"></span> Buscando…';
     setStatus(`Varrendo ${prefix}.1–254 …`, 'warn');
     renderScanResults();
 
     const seen = new Set();
-    let hadError = false;
-    try {
-        for (let from = 1; from <= 254; from += CHUNK) {
-            const to = Math.min(from + CHUNK - 1, 254);
-            scanRange = `${prefix}.${from}–${to}`;
-            renderScanResults();                        // mostra a faixa atual + spinner
-            let part = [];
-            try {
-                part = await scanNetwork(base, from, to);
-            } catch (e) {
-                hadError = true;
-                setStatus(`Falha no trecho ${prefix}.${from}–${to}: ${e.message}`, 'err');
-                continue;                               // segue nos próximos trechos
-            }
-            let added = false;
-            for (const p of part) {
-                if (seen.has(p.ip)) continue;
-                seen.add(p.ip);
-                scanResults.push(p);
-                added = true;
-            }
-            if (added) scanResults.sort((a, b) =>
-                (+a.ip.split('.')[3] || 0) - (+b.ip.split('.')[3] || 0));
-            renderScanResults();                        // contador sobe a cada trecho
+    let hadError = false, done = 0;
+    const t0 = performance.now();
+    const runChunk = async ([from, to]) => {
+        let part = [];
+        try {
+            part = await scanNetwork(base, from, to);
+        } catch (e) {
+            hadError = true;
+            setStatus(`Falha no trecho ${prefix}.${from}–${to}: ${e.message}`, 'err');
         }
+        done++;
+        scanRange = `${prefix}.1–254 (${done}/${ranges.length} trechos)`;
+        for (const p of part) {
+            if (seen.has(p.ip)) continue;
+            seen.add(p.ip);
+            scanResults.push(p);
+        }
+        scanResults.sort((a, b) => (+a.ip.split('.')[3] || 0) - (+b.ip.split('.')[3] || 0));
+        renderScanResults();                            // contador sobe a cada trecho
+    };
+    try {
+        await Promise.all(ranges.map(runChunk));
         logPanel(`Broadcast: ${scanResults.length} impressora(s) na faixa de ${base}`);
     } finally {
+        const secs = ((performance.now() - t0) / 1000).toFixed(1).replace('.', ',');
         scanning = false;
         btn.disabled = false;
         btn.textContent = 'Buscar';
         renderScanResults();
         setStatus(
-            `Busca concluída: ${scanResults.length} Zebra(s).`,
+            `Busca concluída: ${scanResults.length} Zebra(s) em ${secs}s.`,
             scanResults.length ? 'ok' : (hadError ? 'err' : 'warn')
         );
     }
